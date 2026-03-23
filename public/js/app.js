@@ -7,6 +7,15 @@ let selectedEnv  = 'paper';
 let currentPage  = 'home';
 
 document.addEventListener('DOMContentLoaded', async () => {
+  if (!localStorage.getItem('token')) {
+    document.getElementById('login-overlay').style.display = 'flex';
+  } else {
+    initApp();
+  }
+});
+
+async function initApp() {
+  document.getElementById('login-overlay').style.display = 'none';
   updateClock(); setInterval(updateClock, 1000);
   SSE.connect();
 
@@ -15,7 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   checkMarketStatus();
   setInterval(checkMarketStatus, 60000);
   setTimeout(initCharts, 150);
-});
+}
 
 // ── Clock ─────────────────────────────────────────────────
 function updateClock() {
@@ -83,6 +92,9 @@ function openConfig() {
   document.getElementById('modal').classList.add('open');
   // Pre-fill env buttons
   selectEnv(selectedEnv, document.getElementById(`env-${selectedEnv}-btn`));
+  // Pre-fill fields
+  document.getElementById('cfg-llm-provider').value = configData.llm_provider || 'anthropic';
+  if (typeof toggleProviderFields === 'function') toggleProviderFields();
   renderKeyStatus();
 }
 function closeConfig() { document.getElementById('modal').classList.remove('open'); }
@@ -100,7 +112,9 @@ async function saveConfig() {
   const alpacaKey    = document.getElementById('cfg-alpaca-key').value.trim();
   const alpacaSecret = document.getElementById('cfg-alpaca-secret').value.trim();
   const anthropicKey = document.getElementById('cfg-anthropic-key').value.trim();
+  const geminiKey    = document.getElementById('cfg-gemini-key').value.trim();
   const polygonKey   = document.getElementById('cfg-polygon-key').value.trim();
+  const llmProvider  = document.getElementById('cfg-llm-provider').value;
   const env          = pendingEnv;
 
   // Require explicit live confirmation
@@ -121,16 +135,10 @@ async function saveConfig() {
   }
 
   try {
-    const res = await fetch('/api/config/keys', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        alpacaKey, alpacaSecret, alpacaEnv: env,
-        anthropicKey, polygonKey, liveConfirmed
-      })
+    const data = await API.saveKeys({
+      alpacaKey, alpacaSecret, alpacaEnv: env,
+      anthropicKey, geminiKey, polygonKey, llmProvider, liveConfirmed
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
 
     selectedEnv = env;
     updateEnvPill(env);
@@ -152,9 +160,11 @@ async function saveConfig() {
 function renderKeyStatus() {
   const el = document.getElementById('key-status-list');
   if (!el || !configData) return;
+  const aiActive = (configData.llm_provider === 'gemini') ? configData.has_gemini_key : configData.has_anthropic_key;
+  const aiName   = (configData.llm_provider === 'gemini') ? 'Gemini' : 'Anthropic';
   const items = [
     { name: 'Alpaca',    ok: configData.has_alpaca_key,    detail: configData.has_alpaca_key ? `${configData.alpaca_env?.toUpperCase()} mode` : 'Not configured' },
-    { name: 'Anthropic', ok: configData.has_anthropic_key, detail: configData.has_anthropic_key ? 'AI trading active' : 'Not configured' },
+    { name: `AI (${aiName})`, ok: aiActive,                detail: aiActive ? 'AI trading active' : 'Not configured' },
     { name: 'Polygon',   ok: configData.has_polygon_key,   detail: configData.has_polygon_key ? 'Live data' : 'Simulated data' },
   ];
   el.innerHTML = items.map(i => `
@@ -183,18 +193,45 @@ function openEnvSwitcher() {
 // ── Mode pill ─────────────────────────────────────────────
 function updateModePill(mode) {
   const pill = document.getElementById('mode-pill');
-  if (!pill) return;
-  pill.textContent = mode === 'autonomous' ? 'AUTO' : mode === 'approval' ? 'APPROVAL' : 'PAUSED';
-  pill.className   = `mode-pill ${mode}`;
+  if (pill) {
+    pill.textContent = mode === 'autonomous' ? 'AUTO' : mode === 'approval' ? 'APPROVAL' : 'PAUSED';
+    pill.className   = `mode-pill ${mode}`;
+  }
+  
+  const stopBtn = document.getElementById('nav-stop-ai');
+  if (stopBtn) {
+    if (mode === 'paused') {
+      stopBtn.classList.add('stopped');
+      stopBtn.innerHTML = '▶ Resume AI';
+    } else {
+      stopBtn.classList.remove('stopped');
+      stopBtn.innerHTML = '⏹ Stop AI';
+    }
+  }
+}
+
+// ── Global AI Stop ────────────────────────────────────────
+async function toggleGlobalAIStop() {
+  const isStopped = document.getElementById('nav-stop-ai').classList.contains('stopped');
+  const targetMode = isStopped ? 'autonomous' : 'paused';
+  try {
+    await API.setAIMode(targetMode);
+    toast(targetMode === 'paused' ? '🛑 AI Trading Stopped' : '⚡ AI Trading Resumed', 'info');
+    updateModePill(targetMode);
+  } catch (e) {
+    toast(`Failed to toggle AI: ${e.message}`, 'error');
+  }
 }
 
 // ── Kill switch ───────────────────────────────────────────
 async function triggerKillSwitch() {
-  if (!confirm('⚠️ KILL SWITCH\n\nThis will cancel ALL orders and close ALL positions immediately.\n\nContinue?')) return;
+  if (!confirm('⚠️ KILL SWITCH\n\nThis will cancel ALL orders and close ALL positions immediately.\nIt will also pause the AI generator.\n\nContinue?')) return;
   if (!confirm('Are you absolutely sure?')) return;
   try {
+    await API.setAIMode('paused');
+    updateModePill('paused');
     await API.killSwitch();
-    toast('🚨 Kill switch activated — all positions closed', 'error', 8000);
+    toast('🚨 Kill switch activated — AI paused and positions closing', 'error', 8000);
     setTimeout(loadPortfolio, 2000);
   } catch (e) {
     toast(`Kill switch error: ${e.message}`, 'error');

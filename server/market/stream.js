@@ -15,7 +15,7 @@ function polygonKey() {
 async function getHistoricalBars(symbol, timespan = 'day', multiplier = 1, from, to, limit = 200) {
   const key = polygonKey();
   if (!key || key === 'your_polygon_api_key_here') {
-    return generateSimulatedBars(symbol, limit);
+    return [];
   }
 
   const toDate   = to   || new Date().toISOString().split('T')[0];
@@ -27,7 +27,7 @@ async function getHistoricalBars(symbol, timespan = 'day', multiplier = 1, from,
   try {
     const res  = await fetch(url);
     const data = await res.json();
-    if (!data.results) return generateSimulatedBars(symbol, limit);
+    if (!data.results) return [];
 
     return data.results.map(r => ({
       timestamp: new Date(r.t).toISOString(),
@@ -39,7 +39,7 @@ async function getHistoricalBars(symbol, timespan = 'day', multiplier = 1, from,
     }));
   } catch (e) {
     console.error(`Polygon bars error for ${symbol}:`, e.message);
-    return generateSimulatedBars(symbol, limit);
+    return [];
   }
 }
 
@@ -52,7 +52,7 @@ async function getIntradayBars(symbol, minutes = 5, limit = 200) {
 async function getNews(tickers = [], limit = 20) {
   const key = polygonKey();
   if (!key || key === 'your_polygon_api_key_here') {
-    return getSimulatedNews();
+    return [];
   }
 
   const tickerParam = tickers.length ? `&ticker=${tickers.join(',')}` : '';
@@ -74,7 +74,7 @@ async function getNews(tickers = [], limit = 20) {
     }));
   } catch (e) {
     console.error('Polygon news error:', e.message);
-    return getSimulatedNews();
+    return [];
   }
 }
 
@@ -136,52 +136,7 @@ function scoreSentiment(text) {
   return 'neutral';
 }
 
-// ── Simulated data (no API key) ──────────────────────────
-function generateSimulatedBars(symbol, count = 200) {
-  const seedPrices = {
-    // Equities
-    AAPL: 189, MSFT: 415, NVDA: 875, TSLA: 248, AMZN: 184,
-    GOOGL: 174, META: 512, AMD: 178, JPM: 198, V: 275,
-    // ETFs
-    SPY: 542, QQQ: 468, IWM: 205, GLD: 192,
-    TLT: 94, XLK: 215, XLF: 42, XLE: 89, ARKK: 48,
-    // Crypto (realistic scale)
-    BTCUSD: 68500, ETHUSD: 3800, SOLUSD: 178, DOGEUSD: 0.18,
-  };
-  // Crypto needs bigger simulated moves
-  const cryptoVol = new Set(['BTCUSD','ETHUSD','SOLUSD','DOGEUSD']);
-  const volFactor = cryptoVol.has(symbol) ? 0.025 : 0.015;
-  let price = seedPrices[symbol] || 100 + Math.random() * 400;
-  const bars = [];
-  const now  = Date.now();
 
-  for (let i = count; i >= 0; i--) {
-    const change = (Math.random() - 0.48) * price * volFactor;
-    const open   = price;
-    price += change;
-    const high   = Math.max(open, price) * (1 + Math.random() * 0.005);
-    const low    = Math.min(open, price) * (1 - Math.random() * 0.005);
-    bars.push({
-      timestamp: new Date(now - i * 24 * 60 * 60 * 1000).toISOString(),
-      open:   +open.toFixed(2),
-      high:   +high.toFixed(2),
-      low:    +low.toFixed(2),
-      close:  +price.toFixed(2),
-      volume: Math.floor(Math.random() * 50000000 + 5000000),
-    });
-  }
-  return bars;
-}
-
-function getSimulatedNews() {
-  return [
-    { headline: 'Fed holds rates steady, signals cautious approach to cuts', summary: 'Federal Reserve keeps benchmark rate unchanged amid persistent inflation concerns.', source: 'Reuters', tickers: ['SPY', 'QQQ'], timestamp: new Date().toISOString(), sentiment: 'neutral' },
-    { headline: 'NVIDIA earnings beat estimates as AI demand surges', summary: 'Chipmaker reports record revenue driven by data center GPU demand.', source: 'Bloomberg', tickers: ['NVDA'], timestamp: new Date(Date.now() - 3600000).toISOString(), sentiment: 'positive' },
-    { headline: 'Apple unveils next-generation AI features for iPhone', summary: 'Tim Cook announces deep AI integration across the iOS ecosystem.', source: 'CNBC', tickers: ['AAPL'], timestamp: new Date(Date.now() - 7200000).toISOString(), sentiment: 'positive' },
-    { headline: 'Treasury yields rise on stronger-than-expected jobs data', summary: '10-year yield climbs as labor market shows resilience.', source: 'WSJ', tickers: [], timestamp: new Date(Date.now() - 10800000).toISOString(), sentiment: 'negative' },
-    { headline: 'Tesla deliveries miss Q1 estimates, shares slide', summary: 'Electric vehicle maker delivers fewer cars than analysts expected.', source: 'Reuters', tickers: ['TSLA'], timestamp: new Date(Date.now() - 14400000).toISOString(), sentiment: 'negative' },
-  ];
-}
 
 module.exports = {
   getHistoricalBars, getIntradayBars, getNews, getCryptoPrices,

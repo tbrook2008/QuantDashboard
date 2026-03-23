@@ -29,8 +29,7 @@ async function initAlpacaStream(sse) {
   sseManager = sse;
 
   if (!process.env.ALPACA_API_KEY || process.env.ALPACA_API_KEY === 'your_paper_api_key_here') {
-    console.warn('⚠️  Alpaca keys not set — stream disabled, using simulated data');
-    startSimulatedStream(sse);
+    console.warn('⚠️  Alpaca keys not set — stream disabled. Live data required.');
     return;
   }
 
@@ -142,41 +141,7 @@ function removeSymbols(symbols) {
   }
 }
 
-// ── Simulated stream (no API key) ────────────────────────
-// Provides realistic-looking data so the UI works immediately
-function startSimulatedStream(sse) {
-  const prices = {
-    // Equities
-    AAPL: 189.50, MSFT: 415.20, NVDA: 875.40, TSLA: 248.80,
-    AMZN: 184.30, GOOGL: 174.10, META: 512.60, AMD: 178.90,
-    JPM: 198.40, V: 275.30,
-    // ETFs
-    SPY: 542.30, QQQ: 468.20, IWM: 205.80, GLD: 192.40,
-    TLT: 94.20, XLK: 215.40, XLF: 42.30, XLE: 89.70, ARKK: 48.60,
-    // Crypto pairs (realistic prices)
-    BTCUSD: 68500.00, ETHUSD: 3800.00, SOLUSD: 178.00,
-  };
 
-  // Crypto is more volatile — simulate accordingly
-  const volatility = (sym) => {
-    if (['BTCUSD','ETHUSD','SOLUSD'].includes(sym)) return 0.008; // 0.8% per tick
-    if (['ARKK','SOXL','NVDA','TSLA'].includes(sym)) return 0.002;
-    return 0.001;
-  };
-
-  setInterval(() => {
-    for (const [sym, basePrice] of Object.entries(prices)) {
-      const change  = (Math.random() - 0.495) * basePrice * volatility(sym);
-      prices[sym]  += change;
-      const price   = prices[sym];
-      const quote   = { symbol: sym, bid: price - 0.01, ask: price + 0.01, price, simulated: true };
-      quoteCache[sym] = quote;
-      if (sse) sse.quoteUpdate(sym, quote);
-    }
-  }, 1500);
-
-  console.log('📊 Simulated market stream active (add Alpaca keys for live data)');
-}
 
 module.exports = { initAlpacaStream, addSymbols, removeSymbols, getQuoteCache, getBarCache, getSubscribed };
 

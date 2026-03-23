@@ -20,10 +20,13 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
 // ── Routes ───────────────────────────────────────────────
-app.use('/api/market',  require('./routes/market'));
-app.use('/api/alpaca',  require('./routes/alpaca'));
-app.use('/api/ai',      require('./routes/ai'));
-app.use('/api/config',  require('./routes/config'));
+const { router: authRouter, authenticateToken } = require('./routes/auth');
+
+app.use('/api/auth',    authRouter);
+app.use('/api/market',  authenticateToken, require('./routes/market'));
+app.use('/api/alpaca',  authenticateToken, require('./routes/alpaca'));
+app.use('/api/ai',      authenticateToken, require('./routes/ai'));
+app.use('/api/config',  authenticateToken, require('./routes/config'));
 
 // ── SSE — Server-Sent Events (real-time push to browser) ─
 app.use('/sse',         require('./routes/sse'));

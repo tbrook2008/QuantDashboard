@@ -5,56 +5,64 @@
 // ═══════════════════════════════════════════════════════
 const db = require('./db');
 
-// In-memory cache of active keys (populated from DB on load)
-let _keys = {};
+// In-memory cache of active keys per user (populated from DB on load)
+const _userKeys = new Map();
 
-function loadKeys() {
-  _keys = {
-    alpacaKey:     db.getConfig('alpaca_key', process.env.ALPACA_API_KEY || ''),
-    alpacaSecret:  db.getConfig('alpaca_secret', process.env.ALPACA_SECRET_KEY || ''),
-    alpacaEnv:     db.getConfig('alpaca_env', 'paper'), // 'paper' | 'live'
-    anthropicKey:  db.getConfig('anthropic_key', process.env.ANTHROPIC_API_KEY || ''),
-    polygonKey:    db.getConfig('polygon_key', process.env.POLYGON_API_KEY || ''),
+function loadKeys(userId) {
+  if (!userId) return {};
+  const keys = {
+    alpacaKey:     db.getUserConfig(userId, 'alpaca_key', process.env.ALPACA_API_KEY || ''),
+    alpacaSecret:  db.getUserConfig(userId, 'alpaca_secret', process.env.ALPACA_SECRET_KEY || ''),
+    alpacaEnv:     db.getUserConfig(userId, 'alpaca_env', 'paper'), // 'paper' | 'live'
+    anthropicKey:  db.getUserConfig(userId, 'anthropic_key', process.env.ANTHROPIC_API_KEY || ''),
+    polygonKey:    db.getUserConfig(userId, 'polygon_key', process.env.POLYGON_API_KEY || ''),
+    llmProvider:   db.getUserConfig(userId, 'llm_provider', 'anthropic'),
+    geminiKey:     db.getUserConfig(userId, 'gemini_key', process.env.GEMINI_API_KEY || ''),
   };
-  return _keys;
+  _userKeys.set(userId, keys);
+  return keys;
 }
 
-function getKeys() {
-  if (!Object.keys(_keys).length) loadKeys();
-  return _keys;
+function getKeys(userId) {
+  if (!userId) return {};
+  if (!_userKeys.has(userId)) return loadKeys(userId);
+  return _userKeys.get(userId);
 }
 
-function setKeys(updates) {
+function setKeys(userId, updates) {
+  if (!userId) throw new Error('userId required');
   // Persist each provided key to DB
-  const allowed = ['alpacaKey', 'alpacaSecret', 'alpacaEnv', 'anthropicKey', 'polygonKey'];
+  const allowed = ['alpacaKey', 'alpacaSecret', 'alpacaEnv', 'anthropicKey', 'polygonKey', 'llmProvider', 'geminiKey'];
+  
+  const currentKeys = getKeys(userId);
   for (const key of allowed) {
     if (updates[key] !== undefined && updates[key] !== null) {
       const dbKey = key.replace(/([A-Z])/g, '_$1').toLowerCase(); // camelCase → snake_case
-      db.setConfig(dbKey, updates[key]);
-      _keys[key] = updates[key];
+      db.setUserConfig(userId, dbKey, updates[key]);
+      currentKeys[key] = updates[key];
     }
   }
-  return _keys;
+  _userKeys.set(userId, currentKeys);
+  return currentKeys;
 }
 
-function getAlpacaBaseUrl() {
-  const env = _keys.alpacaEnv || db.getConfig('alpaca_env', 'paper');
+function getAlpacaBaseUrl(userId) {
+  const env = getKeys(userId).alpacaEnv || 'paper';
   return env === 'live'
     ? 'https://api.alpaca.markets'
     : 'https://paper-api.alpaca.markets';
 }
 
-function isConfigured() {
-  const k = getKeys();
+function isConfigured(userId) {
+  const k = getKeys(userId);
   return {
     alpaca:    !!(k.alpacaKey && k.alpacaSecret),
     anthropic: !!k.anthropicKey,
+    gemini:    !!k.geminiKey,
     polygon:   !!k.polygonKey,
     alpacaEnv: k.alpacaEnv || 'paper',
+    llmProvider: k.llmProvider || 'anthropic',
   };
 }
-
-// Call this on server start
-loadKeys();
 
 module.exports = { getKeys, setKeys, loadKeys, getAlpacaBaseUrl, isConfigured };

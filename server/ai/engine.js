@@ -4,14 +4,14 @@
 //  Autonomous: market-hours aware, continuous scan,
 //  confidence-gated real execution via Alpaca.
 // ═══════════════════════════════════════════════════════
-const Anthropic  = require('@anthropic-ai/sdk');
 const cron       = require('node-cron');
 const db         = require('../db');
 const indicators = require('../indicators');
 const alpaca     = require('../alpaca/client');
 const keys       = require('../keys');
+const llmManager = require('./llm');
 const { getQuoteCache }    = require('../alpaca/stream');
-const { getHistoricalBars } = require('../market/stream');
+const { getHistoricalBars, getIntradayBars } = require('../market/stream');
 
 let anthropic;
 let sseManager;
@@ -29,21 +29,13 @@ const DEFAULT_WATCHLIST = [
 
 const CRYPTO_SYMBOLS = new Set(['BTCUSD','ETHUSD','SOLUSD','DOGEUSD']);
 
-// ── Pending approvals queue (approval mode) ───────────────
-const pendingDecisions = new Map();
-function getPendingDecisions() { return [...pendingDecisions.values()]; }
-
-// ── Anthropic client ──────────────────────────────────────
-function getAIClient() {
-  const k = keys.getKeys();
-  if (!k.anthropicKey) return null;
-  if (!anthropic) anthropic = new Anthropic({ apiKey: k.anthropicKey });
-  return anthropic;
+// ── LLM client ────────────────────────────────────────────
+function getAIClient(userId) {
+  return llmManager.getProvider(userId);
 }
 
 function reinitAI() {
-  anthropic = null; // force rebuild on next call
-  console.log('🤖 Anthropic client reset — will reinit on next analysis');
+  // Now created on demand per user, so no-op
 }
 
 // ── Market hours check ────────────────────────────────────
@@ -60,133 +52,103 @@ function isCryptoSymbol(sym) { return CRYPTO_SYMBOLS.has(sym); }
 
 // ── Start Engine ──────────────────────────────────────────
 function startAIEngine(sse) {
-  sseManager   = sse;
-  currentMode  = db.getConfig('ai_mode') || 'approval';
+  sseManager = sse;
 
   // Clear any existing schedulers
   if (cronJob)        { cronJob.stop(); cronJob = null; }
   if (autonomousPoll) { clearInterval(autonomousPoll); autonomousPoll = null; }
 
-  const intervalMin = parseInt(db.getConfig('ai_interval') || '5');
+  // We now run a single global loop every 1 minute.
+  // Each user's interval is checked inside the loop or we just run every minute.
+  // To keep it simple, we run the cycle every minute and analyze active users.
+  console.log(`🤖 AI engine: Global loop started (1m intervals)`);
+  cronJob = cron.schedule('* * * * *', async () => {
+    if (engineRunning) return;
+    engineRunning = true;
+    try { await runGlobalAnalysisCycle(); }
+    catch (e) { console.error('Global cycle error:', e.message); }
+    finally { engineRunning = false; }
+  });
 
-  if (currentMode === 'paused') {
-    console.log('🤖 AI engine: PAUSED');
-    return;
-  }
-
-  if (currentMode === 'autonomous') {
-    // Autonomous: scan every N minutes, but ONLY during market hours (+ always for crypto)
-    console.log(`🤖 AI engine: AUTONOMOUS — scanning every ${intervalMin} min`);
-    autonomousPoll = setInterval(async () => {
-      if (engineRunning) return;
+  // Run immediately
+  setTimeout(async () => {
+    if (!engineRunning) {
       engineRunning = true;
-      try {
-        await runAnalysisCycle();
-      } catch (e) {
-        console.error('Autonomous cycle error:', e.message);
-        if (sseManager) sseManager.systemAlert('error', `AI error: ${e.message}`);
-      } finally {
-        engineRunning = false;
-      }
-    }, intervalMin * 60 * 1000);
-
-    // Run immediately on start
-    setTimeout(async () => {
-      if (!engineRunning) {
-        engineRunning = true;
-        try { await runAnalysisCycle(); } finally { engineRunning = false; }
-      }
-    }, 3000);
-
-  } else {
-    // Approval mode: cron schedule
-    const cronExpr = intervalMin === 1 ? '* * * * *' : `*/${intervalMin} * * * *`;
-    console.log(`🤖 AI engine: APPROVAL — scanning every ${intervalMin} min`);
-    cronJob = cron.schedule(cronExpr, async () => {
-      if (engineRunning) return;
-      engineRunning = true;
-      try { await runAnalysisCycle(); }
-      catch (e) { console.error('Approval cycle error:', e.message); }
-      finally { engineRunning = false; }
-    });
-  }
+      try { await runGlobalAnalysisCycle(); } finally { engineRunning = false; }
+    }
+  }, 3000);
 }
 
 // ── Main Analysis Cycle ───────────────────────────────────
-async function runAnalysisCycle() {
-  const client = getAIClient();
-  if (!client) {
-    if (sseManager) sseManager.systemAlert('warning',
-      'AI engine paused — add Anthropic API key in Settings to activate');
-    return;
+async function runGlobalAnalysisCycle() {
+  const users = db.getActiveUsers();
+  for (const user of users) {
+    const mode = db.getUserConfig(user.id, 'ai_mode') || 'paused';
+    if (mode === 'paused') continue;
+
+    // TODO: rate limiting logic per user interval if needed
+    // For now we run every minute for active users to ensure crypto scanning
+    await runUserAnalysisCycle(user.id, mode);
   }
+}
+
+async function runUserAnalysisCycle(userId, mode) {
+  const client = getAIClient(userId);
+  if (!client) return;
 
   // Check daily loss limit before running
-  const account = await alpaca.getAccount();
+  const account = await alpaca.getAccount(userId);
   if (account) {
     const equity    = parseFloat(account.equity);
     const lastClose = parseFloat(account.last_equity || account.equity);
     if (lastClose > 0) {
       const dayLossPct = (equity - lastClose) / lastClose;
-      const maxLoss    = parseFloat(db.getConfig('max_daily_loss') || '0.02');
+      const maxLoss    = parseFloat(db.getUserConfig(userId, 'max_daily_loss') || '0.02');
       if (dayLossPct < -maxLoss) {
-        const msg = `🛑 Daily loss limit reached (${(dayLossPct*100).toFixed(2)}%) — AI paused for today`;
-        console.warn(msg);
-        if (sseManager) sseManager.systemAlert('warning', msg);
+        console.warn(`🛑 User ${userId} daily loss limit reached — paused`);
         return;
       }
     }
   }
 
-  const positions = await alpaca.getPositions();
-  const watchlist = JSON.parse(db.getConfig('ai_watchlist') || JSON.stringify(DEFAULT_WATCHLIST));
+  const positions = await alpaca.getPositions(userId);
+  const watchlist = JSON.parse(db.getUserConfig(userId, 'ai_watchlist') || JSON.stringify(DEFAULT_WATCHLIST));
 
-  // In autonomous mode, only trade equity/ETF symbols during market hours
-  // Crypto trades 24/7
   const toAnalyze = watchlist.filter(sym => {
-    if (isCryptoSymbol(sym)) return true; // crypto always
-    return isMarketHours();               // equities only during hours
+    if (isCryptoSymbol(sym)) return true;
+    return isMarketHours();
   });
 
   if (toAnalyze.length === 0) {
-    if (sseManager) sseManager.broadcast('ai_status', { message: 'Market closed — monitoring crypto only' });
-    // Still analyze crypto
     const crypto = watchlist.filter(isCryptoSymbol);
     for (const sym of crypto) {
-      try { await analyzeSymbol(sym, account, positions, client); await sleep(2000); } catch {}
+      try { await analyzeSymbol(userId, mode, sym, account, positions, client); await sleep(2000); } catch {}
     }
     return;
   }
 
-  if (sseManager) sseManager.broadcast('ai_status', {
-    message: `Scanning ${toAnalyze.length} symbols...`,
-    mode: currentMode,
-    marketOpen: isMarketHours(),
-  });
-
   for (const symbol of toAnalyze) {
     try {
-      await analyzeSymbol(symbol, account, positions, client);
+      await analyzeSymbol(userId, mode, symbol, account, positions, client);
       await sleep(1500);
     } catch (e) {
-      console.error(`Analysis error ${symbol}:`, e.message);
+      console.error(`Analysis error ${symbol} user ${userId}:`, e.message);
     }
   }
 
-  // Equity snapshot after full cycle
   if (account) {
     db.snapshotEquity({
+      user_id:   userId,
       equity:    parseFloat(account.equity),
       cash:      parseFloat(account.cash),
       pnl_day:   parseFloat(account.equity) - parseFloat(account.last_equity || account.equity),
       pnl_total: 0,
     });
-    if (sseManager) sseManager.accountUpdate(account);
   }
 }
 
 // ── Analyze a single symbol ───────────────────────────────
-async function analyzeSymbol(symbol, account, positions, client) {
+async function analyzeSymbol(userId, mode, symbol, account, positions, client) {
   broadcast_thinking(symbol, 'data', `Fetching data for ${symbol}...`);
 
   const bars = await getHistoricalBars(symbol, 'day', 1, null, null, 100);
@@ -201,7 +163,7 @@ async function analyzeSymbol(symbol, account, positions, client) {
   if (!ind) return;
 
   const currentPosition = positions?.find(p => p.symbol === symbol);
-  const recentTrades    = db.getRecentTrades(20).filter(t => t.symbol === symbol && t.pnl !== null);
+  const recentTrades    = db.getRecentTrades(userId, 20).filter(t => t.symbol === symbol && t.pnl !== null);
   const winRate         = recentTrades.length > 0
     ? (recentTrades.filter(t => t.pnl > 0).length / recentTrades.length * 100).toFixed(1)
     : 'N/A';
@@ -216,13 +178,9 @@ async function analyzeSymbol(symbol, account, positions, client) {
 
   let decision;
   try {
-    const response = await client.messages.create({
-      model:      'claude-sonnet-4-20250514',
-      max_tokens: 800,
-      system:     buildSystemPrompt(),
-      messages:   [{ role: 'user', content: prompt }],
-    });
-    decision = parseDecision(response.content[0]?.text || '', symbol, ind, price);
+    const responseText = await client.analyze(buildSystemPrompt(userId), prompt);
+    decision = parseDecision(responseText, symbol, ind, price);
+    if (!decision) throw new Error('Unparseable AI response');
   } catch (e) {
     console.error(`Claude API error ${symbol}:`, e.message);
     broadcast_thinking(symbol, 'error', `API error: ${e.message}`);
@@ -234,6 +192,7 @@ async function analyzeSymbol(symbol, account, positions, client) {
 
   // Log to DB
   const row = db.insertTrade({
+    user_id:     userId,
     symbol,
     action:      decision.action,
     qty:         decision.qty,
@@ -244,7 +203,7 @@ async function analyzeSymbol(symbol, account, positions, client) {
     regime:      ind.regime?.regime,
     order_id:    null,
     status:      'pending',
-    approved_by: currentMode === 'autonomous' ? 'AI_AUTO' : 'pending',
+    approved_by: 'AI_AUTO', // Always autonomous now
   });
   const tradeId       = row.lastInsertRowid;
   decision.id         = tradeId;
@@ -259,7 +218,7 @@ async function analyzeSymbol(symbol, account, positions, client) {
   }
 
   // Confidence gate
-  const minConf = parseInt(db.getConfig('min_confidence') || '70');
+  const minConf = parseInt(db.getUserConfig(userId, 'min_confidence') || '70');
   if (decision.confidence < minConf) {
     db.updateTradeStatus(tradeId, 'skipped', null, null);
     broadcast_thinking(symbol, 'skip',
@@ -267,18 +226,12 @@ async function analyzeSymbol(symbol, account, positions, client) {
     return;
   }
 
-  // Route based on mode
-  if (currentMode === 'autonomous') {
-    await executeDecision(decision, tradeId, account);
-  } else {
-    // Approval mode — surface to user
-    pendingDecisions.set(tradeId, { ...decision, id: tradeId, timestamp: new Date().toISOString() });
-    if (sseManager) sseManager.broadcast('pending_decision', { decision: { ...decision, id: tradeId } });
-  }
+  // Pure autonomous execution
+  await executeDecision(userId, decision, tradeId, account);
 }
 
 // ── Real Order Execution ──────────────────────────────────
-async function executeDecision(decision, tradeId, account) {
+async function executeDecision(userId, decision, tradeId, account) {
   if (!account) {
     console.error('Cannot execute — no account data (Alpaca key missing?)');
     db.updateTradeStatus(tradeId, 'failed', null, null);
@@ -289,7 +242,7 @@ async function executeDecision(decision, tradeId, account) {
 
   // Risk: position sizing
   const equity    = parseFloat(account.equity);
-  const maxPct    = parseFloat(db.getConfig('max_position_size') || '0.05');
+  const maxPct    = parseFloat(db.getUserConfig(userId, 'max_position_size') || '0.05');
   const maxDollar = equity * maxPct;
   const price     = decision.price;
   const maxQty    = Math.floor(maxDollar / Math.max(price, 0.01));
@@ -307,7 +260,7 @@ async function executeDecision(decision, tradeId, account) {
   }
 
   try {
-    const order = await alpaca.submitOrder({
+    const order = await alpaca.submitOrder(userId, {
       symbol:      decision.symbol,
       qty,
       side:        decision.action === 'BUY' ? 'buy' : 'sell',
@@ -319,7 +272,7 @@ async function executeDecision(decision, tradeId, account) {
     db.updateTradeStatus(tradeId, 'submitted', order.id, null);
     if (sseManager) sseManager.orderUpdate({ ...order, tradeId, aiGenerated: true });
 
-    const env = alpaca.getEnv();
+    const env = alpaca.getEnv(userId);
     const msg = `[${env.toUpperCase()}] ${decision.action} ${qty} ${decision.symbol} submitted`;
     console.log('✅', msg);
     broadcast_thinking(decision.symbol, 'executed', msg);
@@ -332,26 +285,9 @@ async function executeDecision(decision, tradeId, account) {
   }
 }
 
-// ── Approve / Reject (approval mode) ─────────────────────
-async function approveDecision(tradeId) {
-  const decision = pendingDecisions.get(tradeId);
-  if (!decision) return { error: 'Decision not found or expired' };
-  pendingDecisions.delete(tradeId);
 
-  const account = await alpaca.getAccount();
-  await executeDecision(decision, tradeId, account);
-  return { success: true };
-}
-
-function rejectDecision(tradeId) {
-  pendingDecisions.delete(tradeId);
-  db.updateTradeStatus(tradeId, 'rejected', null, null);
-  return { success: true };
-}
-
-// ── Prompt Builder ────────────────────────────────────────
-function buildSystemPrompt() {
-  const env = alpaca.getEnv();
+function buildSystemPrompt(userId) {
+  const env = alpaca.getEnv(userId);
   return `You are MarketPulse AI — a disciplined quantitative trader.
 Account type: ${env === 'live' ? '⚠️ LIVE MONEY — be conservative' : 'Paper trading — test strategies'}.
 Assets: US Equities, ETFs, Crypto (BTCUSD/ETHUSD/SOLUSD). NO options.
@@ -450,43 +386,38 @@ function broadcast_thinking(symbol, step, content) {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ── Public controls ───────────────────────────────────────
-function setMode(mode) {
-  currentMode = mode;
-  db.setConfig('ai_mode', mode);
-  if (sseManager) sseManager.broadcast('ai_mode_change', { mode });
-  startAIEngine(sseManager); // restart scheduler with new mode
-  console.log(`🤖 AI mode → ${mode.toUpperCase()}`);
+function setMode(userId, mode) {
+  db.setUserConfig(userId, 'ai_mode', mode);
+  console.log(`🤖 AI mode [User ${userId}] → ${mode.toUpperCase()}`);
 }
 
-function getMode() { return currentMode; }
+function getMode(userId) { return db.getUserConfig(userId, 'ai_mode') || 'paused'; }
 
-function setWatchlist(symbols) {
-  db.setConfig('ai_watchlist', JSON.stringify(symbols));
+function setWatchlist(userId, symbols) {
+  db.setUserConfig(userId, 'ai_watchlist', JSON.stringify(symbols));
 }
 
-function getWatchlist() {
-  return JSON.parse(db.getConfig('ai_watchlist') || JSON.stringify(DEFAULT_WATCHLIST));
+function getWatchlist(userId) {
+  return JSON.parse(db.getUserConfig(userId, 'ai_watchlist') || JSON.stringify(DEFAULT_WATCHLIST));
 }
 
-async function runNow() {
-  if (engineRunning) return { error: 'Engine already running' };
+async function runNow(userId) {
+  const mode = getMode(userId);
   setImmediate(async () => {
-    engineRunning = true;
-    try { await runAnalysisCycle(); }
+    try { await runUserAnalysisCycle(userId, mode); }
     catch (e) { console.error('Manual run error:', e.message); }
-    finally { engineRunning = false; }
   });
   return { success: true, message: 'Scan started' };
 }
 
-function getStatus() {
+function getStatus(userId) {
   return {
-    mode:        currentMode,
+    mode:        getMode(userId),
     running:     engineRunning,
     marketOpen:  isMarketHours(),
-    env:         alpaca.getEnv(),
-    watchlist:   getWatchlist(),
-    pending:     getPendingDecisions().length,
+    env:         alpaca.getEnv(userId),
+    watchlist:   getWatchlist(userId),
+    pending:     0, // No pending decisions in autonomous mode
   };
 }
 
@@ -494,6 +425,5 @@ module.exports = {
   startAIEngine, reinitAI,
   setMode, getMode, getStatus,
   setWatchlist, getWatchlist,
-  getPendingDecisions, approveDecision, rejectDecision,
   runNow,
 };

@@ -51,10 +51,7 @@ async function loadAIStatus() {
     currentWatchlist = watchlist || [];
     renderWatchlist();
 
-    // Pending decisions
-    pendingMap = {};
-    (pending || []).forEach(d => { pendingMap[d.id] = d; });
-    renderPendingDecisions();
+
 
   } catch (e) {
     console.error('loadAIStatus error:', e.message);
@@ -125,65 +122,7 @@ function appendToDecisionLog(decision) {
   renderDecisionLog();
 }
 
-// ── Pending Decisions ─────────────────────────────────────
-function renderPendingDecisions() {
-  const container = document.getElementById('pending-decisions');
-  const noPending = document.getElementById('no-pending');
-  if (!container) return;
 
-  const decisions = Object.values(pendingMap);
-  noPending.style.display = decisions.length ? 'none' : 'block';
-  updatePendingBadge();
-
-  if (!decisions.length) {
-    container.innerHTML = '';
-    return;
-  }
-
-  container.innerHTML = decisions.map(d => `
-    <div class="decision-card ${d.action?.toLowerCase()}-card" id="dc-${d.id}">
-      <div class="dc-header">
-        <div>
-          <span class="dc-sym">${d.symbol}</span>
-          <span class="dc-action ${d.action}">${d.action}</span>
-        </div>
-        <div>
-          <div class="dc-confidence">Confidence: ${d.confidence}%</div>
-          <div style="font-family:var(--font-mono);font-size:.7rem;color:var(--text3)">
-            ${d.qty} shares @ ~$${fmt(d.price)}
-            ${d.stopLoss ? ` · SL: $${fmt(d.stopLoss)}` : ''}
-            ${d.takeProfit ? ` · TP: $${fmt(d.takeProfit)}` : ''}
-          </div>
-        </div>
-      </div>
-      <div class="dc-reasoning">${d.reasoning}</div>
-      ${d.keySignals?.length ? `
-        <div class="dc-signals">
-          ${d.keySignals.map(s => `<span class="dc-signal-tag">${s}</span>`).join('')}
-        </div>
-      ` : ''}
-      <div class="dc-actions">
-        <button class="approve-btn" onclick="approveTrade(${d.id})">✓ Approve</button>
-        <button class="reject-btn"  onclick="rejectTrade(${d.id})">✗ Reject</button>
-      </div>
-    </div>
-  `).join('');
-}
-
-function addPendingDecision(decision) {
-  pendingMap[decision.id] = decision;
-  renderPendingDecisions();
-}
-
-function updatePendingBadge() {
-  const count = Object.keys(pendingMap).length;
-  const badge = document.getElementById('pending-count');
-  if (badge) {
-    badge.textContent = count;
-    badge.style.background = count > 0 ? 'rgba(240,168,0,.15)' : '';
-    badge.style.color = count > 0 ? 'var(--gold)' : '';
-  }
-}
 
 // ── AI Thinking Stream ────────────────────────────────────
 function updateAIThinking(data) {
@@ -199,36 +138,7 @@ function updateAIThinking(data) {
 }
 
 // ── Actions ───────────────────────────────────────────────
-async function approveTrade(id) {
-  try {
-    await API.approveDecision(id);
-    delete pendingMap[id];
-    const card = document.getElementById(`dc-${id}`);
-    if (card) card.remove();
-    updatePendingBadge();
-    document.getElementById('no-pending').style.display =
-      Object.keys(pendingMap).length ? 'none' : 'block';
-    toast('✅ Trade approved and submitted to Alpaca', 'success');
-    setTimeout(loadAIStats, 3000);
-  } catch (e) {
-    toast(`Failed to approve: ${e.message}`, 'error');
-  }
-}
 
-async function rejectTrade(id) {
-  try {
-    await API.rejectDecision(id);
-    delete pendingMap[id];
-    const card = document.getElementById(`dc-${id}`);
-    if (card) card.remove();
-    updatePendingBadge();
-    document.getElementById('no-pending').style.display =
-      Object.keys(pendingMap).length ? 'none' : 'block';
-    toast('Trade rejected', 'info');
-  } catch (e) {
-    toast(`Error: ${e.message}`, 'error');
-  }
-}
 
 async function setAIMode(mode, btn) {
   try {

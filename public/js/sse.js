@@ -78,12 +78,7 @@ SSE.on('ai_thinking', (data) => {
   updateAIThinking(data);
 });
 
-// Pending decision (approval mode)
-SSE.on('pending_decision', (data) => {
-  addPendingDecision(data.decision);
-  updatePendingBadge();
-  toast(`⏳ AI wants to ${data.decision.action} ${data.decision.symbol} — review needed`, 'warning', 6000);
-});
+
 
 // Order updates
 SSE.on('order_update', (data) => {

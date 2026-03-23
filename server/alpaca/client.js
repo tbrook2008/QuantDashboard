@@ -11,40 +11,41 @@ const CRYPTO_SYMBOLS = new Set([
 ]);
 function isCrypto(sym) { return CRYPTO_SYMBOLS.has(sym?.toUpperCase()); }
 
-function getClient() {
-  const k = keys.getKeys();
+function getClient(userId) {
+  if (!userId) return null;
+  const k = keys.getKeys(userId);
   if (!k.alpacaKey || !k.alpacaSecret) return null;
   return new Alpaca({
     keyId:     k.alpacaKey,
     secretKey: k.alpacaSecret,
-    baseUrl:   keys.getAlpacaBaseUrl(),
+    baseUrl:   keys.getAlpacaBaseUrl(userId),
     paper:     k.alpacaEnv !== 'live',
   });
 }
 
-async function getAccount() {
-  const client = getClient();
+async function getAccount(userId) {
+  const client = getClient(userId);
   if (!client) return null;
   try { return await client.getAccount(); }
   catch (e) { console.error('Alpaca getAccount:', e.message); return null; }
 }
 
-async function getPositions() {
-  const client = getClient();
+async function getPositions(userId) {
+  const client = getClient(userId);
   if (!client) return [];
   try { return await client.getPositions(); }
   catch (e) { console.error('Alpaca getPositions:', e.message); return []; }
 }
 
-async function getOrders(status = 'all', limit = 50) {
-  const client = getClient();
+async function getOrders(userId, status = 'all', limit = 50) {
+  const client = getClient(userId);
   if (!client) return [];
   try { return await client.getOrders({ status, limit }); }
   catch (e) { console.error('Alpaca getOrders:', e.message); return []; }
 }
 
-async function submitOrder(params) {
-  const client = getClient();
+async function submitOrder(userId, params) {
+  const client = getClient(userId);
   if (!client) throw new Error('Alpaca not configured — add API keys in Settings');
 
   const crypto = isCrypto(params.symbol);
@@ -66,39 +67,39 @@ async function submitOrder(params) {
     if (params.takeProfit) order.take_profit  = { limit_price: String(params.takeProfit) };
   }
 
-  const env = keys.getKeys().alpacaEnv || 'paper';
+  const env = keys.getKeys(userId).alpacaEnv || 'paper';
   console.log(`📋 [${env.toUpperCase()}] ${order.side.toUpperCase()} ${order.qty} ${order.symbol}`);
   const result = await client.createOrder(order);
   console.log(`✅ Order ${result.id} | ${result.status}`);
   return result;
 }
 
-async function cancelOrder(orderId) {
-  const client = getClient();
+async function cancelOrder(userId, orderId) {
+  const client = getClient(userId);
   if (!client) throw new Error('Alpaca not configured');
   return client.cancelOrder(orderId);
 }
 
-async function cancelAllOrders() {
-  const client = getClient();
+async function cancelAllOrders(userId) {
+  const client = getClient(userId);
   if (!client) throw new Error('Alpaca not configured');
   return client.cancelAllOrders();
 }
 
-async function closePosition(symbol) {
-  const client = getClient();
+async function closePosition(userId, symbol) {
+  const client = getClient(userId);
   if (!client) throw new Error('Alpaca not configured');
   return client.closePosition(symbol);
 }
 
-async function closeAllPositions() {
-  const client = getClient();
+async function closeAllPositions(userId) {
+  const client = getClient(userId);
   if (!client) throw new Error('Alpaca not configured');
   return client.closeAllPositions();
 }
 
-async function getBars(symbol, timeframe = '1Day', limit = 200) {
-  const client = getClient();
+async function getBars(userId, symbol, timeframe = '1Day', limit = 200) {
+  const client = getClient(userId);
   if (!client) return [];
   try {
     const resp = await client.getBarsV2(symbol, { timeframe, limit, adjustment: 'raw' });
@@ -117,8 +118,8 @@ async function getBars(symbol, timeframe = '1Day', limit = 200) {
   } catch (e) { console.error(`Alpaca getBars ${symbol}:`, e.message); return []; }
 }
 
-async function getLatestQuote(symbol) {
-  const client = getClient();
+async function getLatestQuote(userId, symbol) {
+  const client = getClient(userId);
   if (!client) return null;
   try {
     const q = await client.getLatestQuote(symbol);
@@ -128,21 +129,21 @@ async function getLatestQuote(symbol) {
   } catch { return null; }
 }
 
-async function getPortfolioHistory(period = '1M', timeframe = '1D') {
-  const client = getClient();
+async function getPortfolioHistory(userId, period = '1M', timeframe = '1D') {
+  const client = getClient(userId);
   if (!client) return null;
   try { return await client.getPortfolioHistory({ period, timeframe }); }
   catch (e) { console.error('Alpaca portfolioHistory:', e.message); return null; }
 }
 
-async function getClock() {
-  const client = getClient();
+async function getClock(userId) {
+  const client = getClient(userId);
   if (!client) return null;
   try { return await client.getClock(); }
   catch { return null; }
 }
 
-function getEnv() { return keys.getKeys().alpacaEnv || 'paper'; }
+function getEnv(userId) { return keys.getKeys(userId).alpacaEnv || 'paper'; }
 
 module.exports = {
   getClient, isCrypto, getEnv,

@@ -6,35 +6,55 @@
 const API = {
   base: '',
 
+  getHeaders() {
+    const token = localStorage.getItem('token');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  },
+
   async get(path) {
-    const res = await fetch(this.base + path);
-    if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
+    const res = await fetch(this.base + path, { headers: this.getHeaders() });
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) window.location.reload();
+      throw new Error(`API ${path} → ${res.status}`);
+    }
     return res.json();
   },
 
   async post(path, body) {
     const res = await fetch(this.base + path, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error(`API POST ${path} → ${res.status}`);
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) window.location.reload();
+      throw new Error(`API POST ${path} → ${res.status}`);
+    }
     return res.json();
   },
 
   async put(path, body) {
     const res = await fetch(this.base + path, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error(`API PUT ${path} → ${res.status}`);
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) window.location.reload();
+      throw new Error(`API PUT ${path} → ${res.status}`);
+    }
     return res.json();
   },
 
   async del(path) {
-    const res = await fetch(this.base + path, { method: 'DELETE' });
-    if (!res.ok) throw new Error(`API DELETE ${path} → ${res.status}`);
+    const res = await fetch(this.base + path, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) window.location.reload();
+      throw new Error(`API DELETE ${path} → ${res.status}`);
+    }
     return res.json();
   },
 

@@ -14,10 +14,28 @@ function init() {
 
   // ── Schema ──────────────────────────────────────────────
   db.exec(`
+    -- Users (authentication)
+    CREATE TABLE IF NOT EXISTS users (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      username      TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at    TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Per-User Config Store
+    CREATE TABLE IF NOT EXISTS user_config (
+      user_id INTEGER,
+      key     TEXT,
+      value   TEXT,
+      PRIMARY KEY (user_id, key),
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
     -- AI Trade Journal
     CREATE TABLE IF NOT EXISTS trade_journal (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       timestamp   TEXT    NOT NULL DEFAULT (datetime('now')),
+      user_id     INTEGER DEFAULT 1, -- Added for multi-user
       symbol      TEXT    NOT NULL,
       action      TEXT    NOT NULL,  -- BUY | SELL | HOLD | SKIP
       qty         REAL,
@@ -69,6 +87,7 @@ function init() {
     CREATE TABLE IF NOT EXISTS equity_snapshots (
       id        INTEGER PRIMARY KEY AUTOINCREMENT,
       timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+      user_id   INTEGER DEFAULT 1, -- Added for multi-user
       equity    REAL,
       cash      REAL,
       pnl_day   REAL,
@@ -89,12 +108,13 @@ function get() {
 function insertTrade(trade) {
   const stmt = get().prepare(`
     INSERT INTO trade_journal
-      (symbol, action, qty, price, confidence, reasoning, indicators, regime, order_id, status, approved_by)
+      (user_id, symbol, action, qty, price, confidence, reasoning, indicators, regime, order_id, status, approved_by)
     VALUES
-      (@symbol, @action, @qty, @price, @confidence, @reasoning, @indicators, @regime, @order_id, @status, @approved_by)
+      (@user_id, @symbol, @action, @qty, @price, @confidence, @reasoning, @indicators, @regime, @order_id, @status, @approved_by)
   `);
   return stmt.run({
     ...trade,
+    user_id: trade.user_id || 1,
     indicators: JSON.stringify(trade.indicators || {}),
   });
 }
@@ -105,13 +125,13 @@ function updateTradeStatus(id, status, orderId, pnl) {
   `).run(status, orderId, pnl ?? null, id);
 }
 
-function getRecentTrades(limit = 50) {
+function getRecentTrades(userId = 1, limit = 50) {
   return get().prepare(`
-    SELECT * FROM trade_journal ORDER BY timestamp DESC LIMIT ?
-  `).all(limit);
+    SELECT * FROM trade_journal WHERE user_id = ? ORDER BY timestamp DESC LIMIT ?
+  `).all(userId, limit);
 }
 
-function getTradeStats() {
+function getTradeStats(userId = 1) {
   return get().prepare(`
     SELECT
       COUNT(*) as total,
@@ -122,8 +142,8 @@ function getTradeStats() {
       MAX(pnl) as best_trade,
       MIN(pnl) as worst_trade
     FROM trade_journal
-    WHERE status = 'filled' AND pnl IS NOT NULL
-  `).get();
+    WHERE status = 'filled' AND pnl IS NOT NULL AND user_id = ?
+  `).get(userId);
 }
 
 // ── Price Bars ───────────────────────────────────────────
@@ -156,20 +176,48 @@ function setConfig(key, value) {
   get().prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run(key, String(value));
 }
 
+// ── User Config ──────────────────────────────────────────
+function getUserConfig(userId, key, defaultVal = null) {
+  const row = get().prepare('SELECT value FROM user_config WHERE user_id=? AND key=?').get(userId, key);
+  return row ? row.value : defaultVal;
+}
+
+function setUserConfig(userId, key, value) {
+  get().prepare('INSERT OR REPLACE INTO user_config (user_id, key, value) VALUES (?, ?, ?)').run(userId, key, String(value));
+}
+
+// ── Users ────────────────────────────────────────────────
+function createUser(username, hash) {
+  const stmt = get().prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)');
+  return stmt.run(username, hash);
+}
+
+function getUserByUsername(username) {
+  return get().prepare('SELECT * FROM users WHERE username=?').get(username);
+}
+
+function getUserById(id) {
+  return get().prepare('SELECT * FROM users WHERE id=?').get(id);
+}
+
+function getActiveUsers() {
+  return get().prepare('SELECT id, username FROM users').all();
+}
+
 // ── Equity Snapshots ─────────────────────────────────────
 function snapshotEquity(data) {
   get().prepare(`
-    INSERT INTO equity_snapshots (equity, cash, pnl_day, pnl_total)
-    VALUES (@equity, @cash, @pnl_day, @pnl_total)
-  `).run(data);
+    INSERT INTO equity_snapshots (user_id, equity, cash, pnl_day, pnl_total)
+    VALUES (@user_id, @equity, @cash, @pnl_day, @pnl_total)
+  `).run({ user_id: 1, ...data });
 }
 
-function getEquityCurve(days = 30) {
+function getEquityCurve(userId = 1, days = 30) {
   return get().prepare(`
     SELECT * FROM equity_snapshots
-    WHERE timestamp >= datetime('now', ? || ' days')
+    WHERE timestamp >= datetime('now', ? || ' days') AND user_id = ?
     ORDER BY timestamp ASC
-  `).all(`-${days}`);
+  `).all(`-${days}`, userId);
 }
 
 // ── News ─────────────────────────────────────────────────
@@ -191,6 +239,8 @@ module.exports = {
   insertTrade, updateTradeStatus, getRecentTrades, getTradeStats,
   upsertBars, getBars,
   getConfig, setConfig,
+  getUserConfig, setUserConfig,
+  createUser, getUserByUsername, getUserById, getActiveUsers,
   snapshotEquity, getEquityCurve,
   insertNews, getRecentNews,
 };

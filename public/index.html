@@ -9,7 +9,23 @@
 </head>
 <body>
 
-<!-- NAV -->
+<!-- LOGIN OVERLAY -->
+<div id="login-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg); z-index:9999; align-items:center; justify-content:center; flex-direction:column;">
+  <div class="login-box" style="background:var(--bg2); padding:32px; border-radius:12px; border:1px solid var(--border); width:340px; box-shadow:0 12px 32px rgba(0,0,0,0.5);">
+    <h2 style="margin-top:0; color:var(--text); text-align:center; font-weight:600; margin-bottom:24px;">MarketPulse<span style="color:var(--text3); font-weight:400;"> / Login</span></h2>
+    <div style="margin-bottom:15px;">
+      <label style="display:block; color:var(--text3); margin-bottom:6px; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; font-weight:600;">Username</label>
+      <input type="text" id="login-user" style="width:100%; padding:10px 12px; background:var(--bg3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none; transition:border-color 0.15s;" autocomplete="off" onfocus="this.style.borderColor='var(--border2)'" onblur="this.style.borderColor='var(--border)'" />
+    </div>
+    <div style="margin-bottom:24px;">
+      <label style="display:block; color:var(--text3); margin-bottom:6px; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; font-weight:600;">Password</label>
+      <input type="password" id="login-pass" style="width:100%; padding:10px 12px; background:var(--bg3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none; transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--border2)'" onblur="this.style.borderColor='var(--border)'" />
+    </div>
+    <button onclick="submitLogin()" style="width:100%; padding:12px; background:var(--accent); color:#000; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:0.85rem; transition:opacity 0.15s; margin-bottom:12px;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Sign In →</button>
+    <button onclick="submitRegister()" style="width:100%; padding:12px; background:transparent; border:1px solid var(--border2); color:var(--text); border-radius:6px; cursor:pointer; font-weight:500; font-size:0.85rem; transition:background 0.15s;" onmouseover="this.style.background='var(--bg4)'" onmouseout="this.style.background='transparent'">Create Account</button>
+    <div id="login-error" style="color:var(--red); font-size:0.8rem; margin-top:12px; text-align:center; display:none;"></div>
+  </div>
+</div><!-- NAV -->
 <nav id="nav">
   <div class="nav-logo" onclick="showPage('home')">
     <div class="nav-logo-mark">
@@ -29,9 +45,11 @@
     <div id="market-status" style="font-family:var(--mono);font-size:.7rem;color:var(--text3)">–</div>
     <button id="env-pill" class="env-pill paper" onclick="openEnvSwitcher()" title="Switch paper/live">PAPER</button>
     <div id="mode-pill" class="mode-pill approval">APPROVAL</div>
+    <button class="stop-ai-btn" id="nav-stop-ai" onclick="toggleGlobalAIStop()">⏹ Stop AI</button>
     <div id="clock">–</div>
-    <button class="kill-btn" onclick="triggerKillSwitch()">KILL ALL</button>
+    <button class="kill-btn" onclick="triggerKillSwitch()" title="Emergency: Close all positions and stop AI">KILL ALL</button>
     <button class="icon-btn" onclick="openConfig()" title="Settings">⚙</button>
+    <button class="icon-btn" onclick="logout()" title="Logout" style="color:var(--text2); margin-left:8px;">🚪</button>
   </div>
 </nav>
 
@@ -186,8 +204,7 @@
         <span class="ctrl-label">Mode</span>
         <div class="mode-btns">
           <button class="mode-btn" data-mode="paused"     onclick="setAIMode('paused',this)">⏸ Paused</button>
-          <button class="mode-btn active" data-mode="approval"  onclick="setAIMode('approval',this)">👁 Approval</button>
-          <button class="mode-btn" data-mode="autonomous" onclick="setAIMode('autonomous',this)">⚡ Autonomous</button>
+          <button class="mode-btn active" data-mode="autonomous" onclick="setAIMode('autonomous',this)">⚡ Autonomous</button>
         </div>
       </div>
       <div class="scan-control">
@@ -216,16 +233,9 @@
     </div>
     <div class="trader-body">
       <div class="trader-main">
-        <!-- Pending -->
-        <div class="panel-header" style="flex-shrink:0">
-          <span class="panel-title">Awaiting Approval</span>
-          <span id="pending-count" style="font-family:var(--mono);font-size:.7rem;color:var(--text3)">0</span>
-        </div>
-        <div id="pending-decisions"></div>
-        <div id="no-pending" class="empty">No pending decisions — AI is monitoring</div>
         <!-- Log -->
-        <div class="panel-header" style="flex-shrink:0;border-top:1px solid var(--border)">
-          <span class="panel-title">Decision Log</span>
+        <div class="panel-header" style="flex-shrink:0;">
+          <span class="panel-title">Autonomous Execution Log</span>
         </div>
         <div id="ai-decision-log" style="flex:1;overflow-y:auto"></div>
       </div>
@@ -368,10 +378,21 @@
         </div>
       </div>
       <div class="modal-section">
-        <div class="modal-section-title">Anthropic (AI Trading)</div>
+        <div class="modal-section-title">AI Engine</div>
         <div class="modal-field">
-          <label class="modal-lbl">API Key</label>
+          <label class="modal-lbl">Provider</label>
+          <select id="cfg-llm-provider" class="modal-input" style="padding:8px" onchange="toggleProviderFields()">
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="gemini">Google (Gemini)</option>
+          </select>
+        </div>
+        <div class="modal-field" id="anthropic-field">
+          <label class="modal-lbl">Anthropic API Key</label>
           <input type="password" id="cfg-anthropic-key" class="modal-input" placeholder="sk-ant-..."/>
+        </div>
+        <div class="modal-field" id="gemini-field" style="display:none">
+          <label class="modal-lbl">Gemini API Key</label>
+          <input type="password" id="cfg-gemini-key" class="modal-input" placeholder="AIza..."/>
         </div>
       </div>
       <div class="modal-section">
@@ -395,6 +416,15 @@
 
 <div id="toast-container"></div>
 
+<script>
+function toggleProviderFields() {
+  const p = document.getElementById('cfg-llm-provider').value;
+  document.getElementById('anthropic-field').style.display = p === 'anthropic' ? 'block' : 'none';
+  document.getElementById('gemini-field').style.display = p === 'gemini' ? 'block' : 'none';
+}
+</script>
+
+<script src="/js/auth.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/sse.js"></script>
 <script src="/js/charts.js"></script>
