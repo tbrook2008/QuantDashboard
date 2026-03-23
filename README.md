@@ -1,62 +1,157 @@
-# MarketPulse — Financial Intelligence Dashboard
+# MarketPulse — AI Trading Intelligence Dashboard
 
-![MarketPulse Dashboard Mockup](ui.html) <!-- Note: This is a placeholder reference to the UI file -->
+A production-grade quantitative trading dashboard with real-time market data, AI-powered trade analysis via Claude, and direct Alpaca Markets execution.
 
-**MarketPulse** is a professional-grade quantitative trading dashboard designed for real-time market monitoring, regime detection, and AI-assisted trade ideation. It combines high-fidelity data visualization with automated technical analysis to provide a comprehensive view of global markets.
+---
 
-## 🚀 Features
+## Features
 
--   **Multi-Asset Live Tracking**: Real-time price action for Equities (S&P 500, NASDAQ, Dow Jones), Crypto (BTC, ETH, SOL), and Commodities (Gold, WTI Crude).
--   **Automated Regime Detection**: Dynamic classification of market environments (Bull, Bear, Neutral, Transition) using a multi-factor model (ADX, Moving Averages, RSI).
--   **Advanced Technical Library**: In-house implementation of core indicators:
-    -   Relative Strength Index (RSI)
-    -   MACD (Moving Average Convergence Divergence)
-    -   Bollinger Bands & %B
-    -   Average True Range (ATR) & ADX
-    -   Stochastic Oscillators
--   **AI Analyst Integration**: Configurable connection to Anthropic's Claude for generating regime-aligned trade ideas and market commentary.
--   **Institutional UI**: A high-density, dark-mode terminal featuring:
-    -   Real-time scrolling ticker
-    -   Breaking news banner
-    -   Interactive multi-panel charts via Chart.js
-    -   Account metrics and risk management HUD
+- **Real-Time Market Data** — Alpaca WebSocket + Polygon.io + CoinGecko
+- **TradingView-Style Charts** — Candlestick charts with RSI, MACD, Bollinger Bands, EMA, VWAP
+- **AI Trading Engine** — Claude reads market data and makes structured trade decisions
+- **Alpaca Integration** — Paper and live trading, full order management
+- **4 Pages:** Markets overview, Chart analysis, AI Trader, Portfolio
+- **3 AI Modes:** Approval (you review), Autonomous (fully automated), Paused
+- **Risk Controls** — Max position size, daily loss limits, confidence thresholds
+- **Kill Switch** — Emergency close all positions instantly
 
-## 🛠 Tech Stack
+---
 
--   **Frontend**: Pure HTML5, CSS3 (Vanilla), and JavaScript (ES6+).
--   **Visualization**: [Chart.js](https://www.chartjs.org/) for high-performance rendering.
--   **Data Sources**: Alpaca Markets API (Direct), Yahoo Finance (via Proxy), and CoinGecko.
--   **Server**: Python-native static file server.
+## Quick Start
 
-## 🏁 Getting Started
+### 1. Prerequisites
 
-### Prerequisites
+- **Node.js v18+** — https://nodejs.org
+- **Alpaca account** (free paper account) — https://alpaca.markets
+- **Anthropic API key** — https://console.anthropic.com
+- **Polygon.io key** (optional, free tier) — https://polygon.io
 
--   **Python 3.x**: Required to run the local development server (handles CORS).
--   **API Keys** (Optional for full functionality):
-    -   Alpaca Markets API Key (for live/paper trading)
-    -   Anthropic API Key (for AI Analyst features)
+### 2. Install & Configure
 
-### Installation & Launch
+```bash
+git clone https://github.com/tbrook2008/QuantDashboard.git
+cd QuantDashboard
+cp .env.example .env
+```
 
-1.  Clone the repository:
-    ```bash
-    git clone https://github.com/yourusername/QuantDashboard.git
-    cd QuantDashboard
-    ```
-2.  Launch the dashboard:
-    ```bash
-    bash start.sh
-    ```
-    This script will automatically start a local server at `http://localhost:8080` and open it in your default browser.
+Edit `.env` and add your API keys:
 
-3.  **Configuration**:
-    Open the configuration panel (gear icon) within the dashboard to enter your API keys. These are stored locally in your browser's `localStorage` and are never sent to external servers other than the direct API endpoints.
+```env
+ALPACA_API_KEY=your_alpaca_key
+ALPACA_SECRET_KEY=your_alpaca_secret
+ANTHROPIC_API_KEY=your_anthropic_key
+POLYGON_API_KEY=your_polygon_key
+```
 
-## 🛡 License
+### 3. Run
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+```bash
+bash start.sh
+```
 
-## ⚠️ Disclaimer
+Open http://localhost:3000
 
-MarketPulse is for educational and informational purposes only. Trading involves significant risk. Always perform your own due diligence before executing trades.
+> **Without API keys:** The dashboard runs fully in demo/simulated mode. Add keys in ⚙ Settings or in `.env` for live data.
+
+---
+
+## API Keys
+
+| Key | Where to get | Required for |
+|-----|-------------|--------------|
+| Alpaca (paper) | alpaca.markets → Paper Trading | Live quotes, order execution |
+| Anthropic | console.anthropic.com | AI trade analysis |
+| Polygon.io | polygon.io → Free tier | Historical bars, news |
+| CoinGecko | No key needed (free) | Crypto prices |
+
+---
+
+## AI Modes
+
+| Mode | Behavior |
+|------|----------|
+| **Approval** | AI analyzes and suggests trades. You approve or reject each one. |
+| **Autonomous** | AI trades automatically (within risk rules). Monitor closely. |
+| **Paused** | AI scans and logs but takes no action. |
+
+**Start with Approval mode until you trust the AI's strategy.**
+
+---
+
+## Risk Controls
+
+Configure in the AI Trader page or `.env`:
+
+- **Max Position Size** — Maximum % of portfolio per trade (default: 5%)
+- **Max Daily Loss** — AI stops trading if portfolio drops this % in a day (default: 2%)
+- **Min Confidence** — Only execute trades above this confidence score (default: 70%)
+
+---
+
+## Architecture
+
+```
+marketpulse/
+├── server/
+│   ├── index.js          # Express server entry
+│   ├── db.js             # SQLite database
+│   ├── sse.js            # Server-Sent Events (real-time push)
+│   ├── indicators.js     # RSI, MACD, BB, ATR, ADX, VWAP, regime detection
+│   ├── ai/
+│   │   └── engine.js     # Claude AI trading engine
+│   ├── alpaca/
+│   │   ├── client.js     # Alpaca REST API
+│   │   └── stream.js     # Alpaca WebSocket stream
+│   ├── market/
+│   │   └── stream.js     # Polygon.io + CoinGecko
+│   └── routes/           # Express API routes
+├── public/
+│   ├── index.html        # Single-page app shell
+│   ├── css/main.css      # Full stylesheet
+│   └── js/
+│       ├── app.js        # Bootstrap + router
+│       ├── api.js        # Backend API client
+│       ├── sse.js        # SSE client (real-time)
+│       ├── charts.js     # TradingView Lightweight Charts
+│       ├── home.js       # Markets page
+│       ├── trader.js     # AI Trader page
+│       └── portfolio.js  # Portfolio page
+├── data/
+│   └── marketpulse.db    # SQLite (auto-created)
+├── .env.example
+├── package.json
+└── start.sh
+```
+
+---
+
+## Deploy to Railway (Cloud)
+
+1. Push to GitHub
+2. Go to railway.app → New Project → Deploy from GitHub
+3. Add environment variables (your API keys) in Railway dashboard
+4. Deploy — Railway auto-detects Node.js and runs `npm start`
+
+---
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `1` | Markets page |
+| `2` | Charts page |
+| `3` | AI Trader page |
+| `4` | Portfolio page |
+| `Esc` | Close modal |
+
+---
+
+## Disclaimer
+
+MarketPulse is for educational and research purposes. Trading involves significant financial risk. Past AI performance does not guarantee future results. Always monitor autonomous systems closely and use appropriate risk controls.
+
+---
+
+## License
+
+MIT License — see LICENSE
