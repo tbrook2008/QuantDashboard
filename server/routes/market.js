@@ -31,10 +31,10 @@ router.get('/bars/:symbol', async (req, res) => {
     const multiplier = multiplierMap[timeframe] || 1;
 
     // Try Alpaca first, then Polygon
-    bars = await alpaca.getBars(symbol.toUpperCase(), timeframe === '1D' ? '1Day' : `${multiplier}${timespan === 'minute' ? 'Min' : 'Hour'}`, parseInt(limit));
+    bars = await alpaca.getBars(req.user.id, symbol.toUpperCase(), timeframe === '1D' ? '1Day' : `${multiplier}${timespan === 'minute' ? 'Min' : 'Hour'}`, parseInt(limit));
 
     if (!bars || bars.length === 0) {
-      bars = await market.getHistoricalBars(symbol.toUpperCase(), timespan, multiplier, null, null, parseInt(limit));
+      bars = await market.getHistoricalBars(req.user.id, symbol.toUpperCase(), timespan, multiplier, null, null, parseInt(limit));
     }
 
     // Cache it
@@ -44,6 +44,7 @@ router.get('/bars/:symbol', async (req, res) => {
 
     res.json({ symbol, timeframe, bars: bars || [], source: 'live' });
   } catch (e) {
+    if (e.message === 'RATE_LIMIT') return res.status(429).json({ error: 'Polygon Free Rate Limit (5 calls/min). Wait 60s.' });
     res.status(500).json({ error: e.message });
   }
 });
@@ -82,9 +83,10 @@ router.get('/news', async (req, res) => {
   const { tickers, limit = 20 } = req.query;
   try {
     const tickerArr = tickers ? tickers.split(',') : [];
-    const articles  = await market.getNews(tickerArr, parseInt(limit));
+    const articles  = await market.getNews(req.user.id, tickerArr, parseInt(limit));
     res.json({ articles });
   } catch (e) {
+    if (e.message === 'RATE_LIMIT') return res.status(429).json({ error: 'Polygon Free Rate Limit (5 calls/min). Wait 60s.' });
     res.status(500).json({ error: e.message });
   }
 });
@@ -116,7 +118,7 @@ router.post('/watchlist', (req, res) => {
 // GET /api/market/clock
 router.get('/clock', async (req, res) => {
   try {
-    const clock = await alpaca.getClock();
+    const clock = await alpaca.getClock(req.user.id);
     if (!clock) {
       // Return simulated clock
       const now = new Date();

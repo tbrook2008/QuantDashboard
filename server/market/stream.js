@@ -12,8 +12,9 @@ function polygonKey() {
 }
 
 // ── Historical Bars (Polygon) ────────────────────────────
-async function getHistoricalBars(symbol, timespan = 'day', multiplier = 1, from, to, limit = 200) {
-  const key = polygonKey();
+async function getHistoricalBars(userId, symbol, timespan = 'day', multiplier = 1, from, to, limit = 200) {
+  const keysPlugin = require('../keys');
+  let key = userId ? keysPlugin.getKeys(userId).polygonKey : process.env.POLYGON_API_KEY;
   if (!key || key === 'your_polygon_api_key_here') {
     return [];
   }
@@ -26,8 +27,13 @@ async function getHistoricalBars(symbol, timespan = 'day', multiplier = 1, from,
 
   try {
     const res  = await fetch(url);
+    if (res.status === 429) throw new Error('RATE_LIMIT');
     const data = await res.json();
-    if (!data.results) return [];
+    if (!data.results) {
+      if (data.error && data.error.includes('Rate Limit')) throw new Error('RATE_LIMIT');
+      console.error(`Polygon bars returned no results for ${symbol}. Response:`, JSON.stringify(data));
+      return [];
+    }
 
     return data.results.map(r => ({
       timestamp: new Date(r.t).toISOString(),
@@ -44,13 +50,14 @@ async function getHistoricalBars(symbol, timespan = 'day', multiplier = 1, from,
 }
 
 // ── Intraday Bars ────────────────────────────────────────
-async function getIntradayBars(symbol, minutes = 5, limit = 200) {
-  return getHistoricalBars(symbol, 'minute', minutes, null, null, limit);
+async function getIntradayBars(userId, symbol, minutes = 5, limit = 200) {
+  return getHistoricalBars(userId, symbol, 'minute', minutes, null, null, limit);
 }
 
 // ── News (Polygon) ───────────────────────────────────────
-async function getNews(tickers = [], limit = 20) {
-  const key = polygonKey();
+async function getNews(userId, tickers = [], limit = 20) {
+  const keysPlugin = require('../keys');
+  let key = userId ? keysPlugin.getKeys(userId).polygonKey : process.env.POLYGON_API_KEY;
   if (!key || key === 'your_polygon_api_key_here') {
     return [];
   }
@@ -60,8 +67,13 @@ async function getNews(tickers = [], limit = 20) {
 
   try {
     const res  = await fetch(url);
+    if (res.status === 429) throw new Error('RATE_LIMIT');
     const data = await res.json();
-    if (!data.results) return [];
+    if (!data.results) {
+      if (data.error && data.error.includes('Rate Limit')) throw new Error('RATE_LIMIT');
+      console.error(`Polygon news returned no results. Response:`, JSON.stringify(data));
+      return [];
+    }
 
     return data.results.map(n => ({
       headline:  n.title,
@@ -101,7 +113,8 @@ async function getCryptoPrices() {
 async function initMarketStream(sse) {
   // Poll Polygon for news every 2 minutes
   const pollNews = async () => {
-    const articles = await getNews([], 10);
+    // Pass null userId to use the global process.env fallback for the raw SSE stream
+    const articles = await getNews(null, [], 10);
     for (const article of articles) {
       if (sse) sse.newsUpdate(article);
     }

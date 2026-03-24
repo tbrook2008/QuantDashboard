@@ -93,7 +93,14 @@ async function loadSparkline(sym) {
     if (isUp) MOVERS_DATA.gainers.push(entry);
     else       MOVERS_DATA.losers.push(entry);
 
-  } catch (e) { /* fail silently for sparklines */ }
+  } catch (e) {
+    if (e.message.includes('Rate Limit') && !window.rateLimitToasted) {
+      toast('Polygon Free Tier Limit Hit (5 calls/min). Please consider a paid tier or wait 60 seconds.', 'error', 8000);
+      window.rateLimitToasted = true;
+      setTimeout(() => window.rateLimitToasted = false, 60000);
+    }
+    // Silently fail if not rate limited or already toasted
+  }
 }
 
 function drawSparkline(canvas, data, up) {
@@ -162,27 +169,38 @@ function renderHeatmap(sectors) {
 
 // ── News ──────────────────────────────────────────────────
 async function loadNews() {
+  const feed = document.getElementById('news-feed');
   try {
-    const { articles } = await API.getNews([], 12);
-    const feed = document.getElementById('news-feed');
-    if (!articles || !articles.length) return;
-
+    const { articles } = await API.getNews('', 10);
+    if (!articles || !articles.length) {
+      feed.innerHTML = '<div class="news-item"><div class="news-title" style="color:var(--text3);text-align:center">No market news available at this time</div></div>';
+      return;
+    }
     feed.innerHTML = articles.map(a => `
-      <div class="news-item" onclick="window.open('${a.url || '#'}','_blank')">
-        <div class="ni-top">
-          <span class="ni-cat ${a.sentiment}">${a.sentiment?.toUpperCase() || 'NEWS'}</span>
-          <span class="ni-head">${a.headline}</span>
+      <a href="${a.url}" target="_blank" class="news-item">
+        <div class="news-meta">
+          <span class="news-src">${a.source}</span>
+          <span>•</span>
+          <span>${fmtTime(a.timestamp)}</span>
+          ${a.sentiment ? `<span class="news-sent ${a.sentiment}">${a.sentiment.toUpperCase()}</span>` : ''}
         </div>
-        <div class="ni-meta">${a.source || ''} · ${fmtTime(a.timestamp)}</div>
-      </div>
+        <div class="news-title">${a.headline}</div>
+      </a>
     `).join('');
 
     // Update breaking banner
     const headlines = articles.slice(0, 5).map(a => a.headline).join(' &nbsp;│&nbsp; ');
-    const inner = null; if (!inner) return;
+    const inner = null; if (!inner) return; // This line seems to be a placeholder, keeping it as is.
     if (inner) inner.innerHTML = `${headlines} &nbsp;│&nbsp; ${headlines}`;
 
-  } catch (e) { /* fail silently */ }
+  } catch (e) {
+    if (e.message.includes('Rate Limit') && !window.rateLimitToasted) {
+      toast('Polygon Free Tier Limit Hit (5 calls/min). Please consider a paid tier or wait 60 seconds.', 'error', 8000);
+      window.rateLimitToasted = true;
+      setTimeout(() => window.rateLimitToasted = false, 60000);
+    }
+    feed.innerHTML = '<div class="news-item"><div class="news-title" style="color:var(--red);text-align:center">News feed temporarily unavailable</div></div>';
+  }
 }
 
 function prependNewsItem(article) {

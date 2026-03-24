@@ -32,7 +32,12 @@ async function loadAccount() {
     }
 
     renderAccountSummary(account);
-  } catch {}
+  } catch (e) {
+    if (e.message.includes('Alpaca not configured') && !window.alpacaToasted) {
+      toast('Connect your Alpaca API keys in Settings to view Portfolio!', 'error', 6000);
+      window.alpacaToasted = true;
+    }
+  }
 }
 
 function renderAccountSummary(account) {
@@ -102,7 +107,7 @@ async function loadPositions() {
     }).join('');
 
   } catch (e) {
-    console.error('loadPositions error:', e.message);
+    // console.error('loadPositions error:', e.message);
   }
 }
 

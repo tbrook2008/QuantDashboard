@@ -15,7 +15,8 @@ const API = {
     const res = await fetch(this.base + path, { headers: this.getHeaders() });
     if (!res.ok) {
       if (res.status === 401 || res.status === 403) window.location.reload();
-      throw new Error(`API ${path} → ${res.status}`);
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || `API GET ${path} → ${res.status}`);
     }
     return res.json();
   },
