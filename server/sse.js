@@ -1,99 +1,38 @@
-// ═══════════════════════════════════════════════════════
-//  MarketPulse — SSE Manager (Server-Sent Events)
-//  Pushes real-time data from server → all browser clients
-// ═══════════════════════════════════════════════════════
-const express = require('express');
-const router = express.Router();
-
-// Store all connected SSE clients
+// Server-Sent Events (SSE) Manager for pushing live data to browser clients
 const clients = new Set();
 
-// ── SSE endpoint ─────────────────────────────────────────
-router.get('/stream', (req, res) => {
-  res.set({
-    'Content-Type':  'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection':    'keep-alive',
-    'X-Accel-Buffering': 'no',
-  });
-  res.flushHeaders();
+function addClient(req, res) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    
+    // Explicitly flush headers to prevent buffering and keep connection open
+    res.flushHeaders(); 
 
-  // Send initial heartbeat
-  res.write('data: {"type":"connected"}\n\n');
+    clients.add(res);
 
-  // Register client
-  clients.add(res);
+    req.on('close', () => {
+        clients.delete(res);
+    });
+}
 
-  // Heartbeat every 30s to keep connection alive
-  const heartbeat = setInterval(() => {
-    res.write('data: {"type":"heartbeat"}\n\n');
-  }, 30000);
-
-  // Cleanup on disconnect
-  req.on('close', () => {
-    clearInterval(heartbeat);
-    clients.delete(res);
-  });
-});
-
-// ── Broadcast to all clients ─────────────────────────────
-function broadcast(type, data) {
-  const payload = `data: ${JSON.stringify({ type, ...data })}\n\n`;
-  for (const client of clients) {
-    try {
-      client.write(payload);
-    } catch {
-      clients.delete(client);
+function broadcast(event, data) {
+    const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const client of clients) {
+        // Only write to active clients
+        try {
+            client.write(payload);
+        } catch (e) {
+            clients.delete(client);
+        }
     }
-  }
 }
 
-// ── Typed broadcast helpers ──────────────────────────────
-function quoteUpdate(symbol, quote) {
-  broadcast('quote', { symbol, ...quote });
-}
+// Keep connection alive by sending a ping every 30 seconds
+setInterval(() => {
+    broadcast('ping', { time: new Date().toISOString() });
+}, 30000);
 
-function barUpdate(symbol, timeframe, bar) {
-  broadcast('bar', { symbol, timeframe, bar });
-}
-
-function aiDecision(decision) {
-  broadcast('ai_decision', decision);
-}
-
-function aiThinking(symbol, step, content) {
-  broadcast('ai_thinking', { symbol, step, content });
-}
-
-function orderUpdate(order) {
-  broadcast('order_update', order);
-}
-
-function positionUpdate(positions) {
-  broadcast('positions', { positions });
-}
-
-function accountUpdate(account) {
-  broadcast('account', { account });
-}
-
-function newsUpdate(article) {
-  broadcast('news', { article });
-}
-
-function systemAlert(level, message) {
-  broadcast('alert', { level, message });
-}
-
-module.exports = router;
-module.exports.broadcast       = broadcast;
-module.exports.quoteUpdate     = quoteUpdate;
-module.exports.barUpdate       = barUpdate;
-module.exports.aiDecision      = aiDecision;
-module.exports.aiThinking      = aiThinking;
-module.exports.orderUpdate     = orderUpdate;
-module.exports.positionUpdate  = positionUpdate;
-module.exports.accountUpdate   = accountUpdate;
-module.exports.newsUpdate      = newsUpdate;
-module.exports.systemAlert     = systemAlert;
-module.exports.clients         = clients;
+module.exports = {
+    addClient, broadcast
+};

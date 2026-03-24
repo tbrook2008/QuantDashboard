@@ -1,453 +1,160 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>MarketPulse — AI Trading Dashboard</title>
-<meta name="description" content="Autonomous AI-powered trading dashboard with real-time market data, portfolio management, and intelligent trade execution."/>
-<script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-<link rel="stylesheet" href="/css/main.css"/>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markets - MarketPulse</title>
+    <link rel="stylesheet" href="/css/reset.css">
+    <link rel="stylesheet" href="/css/main.css">
+    <style>
+        .top-nav {
+            background-color: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .nav-brand {
+            font-size: 1.4rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+        .nav-brand span { color: var(--accent-blue); }
+        .nav-links a {
+            margin-left: 2rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            text-decoration: none;
+        }
+        .nav-links a.active { color: var(--accent-blue); border-bottom: 2px solid var(--accent-blue); padding-bottom: 1.25rem;}
+        .nav-links a:hover { color: var(--accent-blue); }
+        
+        /* Ticker Strip */
+        .market-strip {
+            background-color: var(--text-primary);
+            color: white;
+            padding: 0.75rem 0;
+            overflow: hidden;
+            display: flex;
+            gap: 2rem;
+            font-family: var(--mono-font);
+            font-size: 0.9rem;
+        }
+        .ticker-item { display: flex; align-items: center; gap: 0.5rem; }
+        .ticker-symbol { font-weight: 700; }
+        .ticker-price { padding-left: 0.5rem; }
+        .ticker-up { color: #4ade80; } 
+        .ticker-down { color: #f87171; } 
+
+        /* Main Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+            margin-top: 2rem;
+            margin-bottom: 4rem;
+        }
+
+        .section-header {
+            font-size: 1.25rem;
+            font-weight: 700;
+            border-bottom: 2px solid var(--accent-red);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+            display: inline-block;
+        }
+
+        /* News Feed */
+        .news-item {
+            padding-bottom: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .news-item:last-child { border-bottom: none; }
+        .news-time {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .news-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.25rem;
+        }
+        .news-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-bottom: 0.4rem;
+            line-height: 1.3;
+        }
+        .news-title a:hover { color: var(--accent-blue); text-decoration: underline; }
+        .ai-sentiment {
+            font-size: 0.75rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .sentiment-BULLISH { background-color: var(--accent-green); color: white; }
+        .sentiment-BEARISH { background-color: var(--accent-red); color: white; }
+        .sentiment-NEUTRAL { background-color: var(--border-color-dark); color: var(--text-primary); }
+
+        /* Movers Table */
+        .movers-table { width: 100%; border-collapse: collapse; }
+        .movers-table td { padding: 0.75rem 0; border-bottom: 1px solid var(--border-color); }
+        .movers-table tr:last-child td { border-bottom: none; }
+        .movers-symbol { font-weight: 700; font-family: var(--mono-font); }
+        .movers-change { text-align: right; font-weight: 700; color: var(--accent-green); }
+    </style>
 </head>
 <body>
 
-<!-- ═══════════════════════ LOGIN OVERLAY ═══════════════════════ -->
-<div id="login-overlay" style="display:none; position:fixed; inset:0; background:var(--bg); z-index:9999; align-items:center; justify-content:center; flex-direction:column;">
-  <div style="background:var(--bg2); padding:36px; border-radius:12px; border:1px solid var(--border2); width:360px; box-shadow:0 16px 48px rgba(0,0,0,.6);">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:28px;">
-      <div style="width:28px;height:28px;background:var(--amber);border-radius:5px;display:flex;align-items:center;justify-content:center;">
-        <svg viewBox="0 0 16 16" style="width:14px;height:14px;fill:none;stroke:#13120f;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;">
-          <path d="M2 12 L6 7 L9 10 L13 4"/>
-        </svg>
-      </div>
-      <span style="font-family:var(--mono);font-size:.85rem;font-weight:500;letter-spacing:.08em;color:var(--text);">MARKETPULSE</span>
-    </div>
-    <h2 style="margin-bottom:6px;color:var(--text);font-size:1.15rem;font-weight:600;">Sign in</h2>
-    <p style="color:var(--text3);font-size:.78rem;margin-bottom:22px;">Enter your credentials to continue</p>
-    <div style="margin-bottom:14px;">
-      <label style="display:block;color:var(--text3);margin-bottom:5px;font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;font-weight:600;">Username</label>
-      <input type="text" id="login-user" style="width:100%;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;outline:none;font-family:var(--sans);font-size:.85rem;transition:border-color .15s;" autocomplete="off" onfocus="this.style.borderColor='var(--border2)'" onblur="this.style.borderColor='var(--border)'"/>
-    </div>
-    <div style="margin-bottom:22px;">
-      <label style="display:block;color:var(--text3);margin-bottom:5px;font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;font-weight:600;">Password</label>
-      <input type="password" id="login-pass" style="width:100%;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;outline:none;font-family:var(--sans);font-size:.85rem;transition:border-color .15s;" onfocus="this.style.borderColor='var(--border2)'" onblur="this.style.borderColor='var(--border)'"/>
-    </div>
-    <button onclick="submitLogin()" style="width:100%;padding:11px;background:#fff;color:#000;border:none;border-radius:6px;font-weight:600;font-size:.85rem;font-family:var(--sans);margin-bottom:10px;transition:opacity .15s;" onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">Sign In →</button>
-    <button onclick="submitRegister()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--border2);color:var(--text2);border-radius:6px;font-weight:500;font-size:.85rem;font-family:var(--sans);transition:all .15s;" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='transparent'">Create Account</button>
-    <div id="login-error" style="color:var(--red);font-size:.78rem;margin-top:12px;text-align:center;display:none;"></div>
-  </div>
-</div>
-
-<!-- ═══════════════════════ TOP NAV ═══════════════════════ -->
-<nav id="nav" role="navigation" aria-label="Main navigation">
-  <div class="nav-logo" onclick="showPage('home')" role="button" aria-label="Home">
-    <div class="nav-logo-mark">
-      <svg viewBox="0 0 16 16"><path d="M2 12 L6 7 L9 10 L13 4"/></svg>
-    </div>
-    <span class="nav-logo-text">MARKETPULSE</span>
-  </div>
-
-  <div class="nav-links" role="tablist">
-    <button class="nav-link active" data-page="home"      onclick="showPage('home')"      role="tab">Markets</button>
-    <button class="nav-link"        data-page="charts"    onclick="showPage('charts')"    role="tab">Charts</button>
-    <button class="nav-link"        data-page="trader"    onclick="showPage('trader')"    role="tab">AI Trader</button>
-    <button class="nav-link"        data-page="portfolio" onclick="showPage('portfolio')" role="tab">Portfolio</button>
-  </div>
-
-  <div class="nav-right">
-    <div id="market-status" aria-live="polite">–</div>
-    <div class="nav-sep"></div>
-    <button id="env-pill" class="nav-badge env-pill paper" onclick="openEnvSwitcher()" title="Switch trading environment">PAPER</button>
-    <div id="mode-pill" class="nav-badge mode-pill approval">APPROVAL</div>
-    <div class="nav-sep"></div>
-    <button class="stop-ai-btn" id="nav-stop-ai" onclick="toggleGlobalAIStop()" title="Pause/resume AI engine">⏹ Stop AI</button>
-    <button class="kill-btn" onclick="triggerKillSwitch()" title="Emergency: Stop AI and close all positions">KILL ALL</button>
-    <div class="nav-sep"></div>
-    <div id="clock" aria-live="polite">–</div>
-    <button class="icon-btn" onclick="openConfig()" title="Settings" aria-label="Open settings">⚙</button>
-    <button class="icon-btn" onclick="logout()" title="Logout" aria-label="Logout" style="color:var(--text3)">→</button>
-  </div>
-</nav>
-
-<!-- ═══════════════════════ TICKER BAR ═══════════════════════ -->
-<div id="ticker-bar" aria-label="Live market ticker" role="marquee">
-  <div class="ticker-tag">LIVE</div>
-  <div class="ticker-scroll">
-    <div id="tick-inner"></div>
-  </div>
-</div>
-
-<!-- ═══════════════════════ SETUP NOTICE ═══════════════════════ -->
-<div id="setup-notice" style="display:none">
-  <strong>Simulation mode</strong> — add API keys to enable live data and real trading.
-  <button class="setup-notice-btn" onclick="openConfig()">Add Keys</button>
-  <button class="setup-notice-close" onclick="this.parentElement.style.display='none'" aria-label="Dismiss">✕</button>
-</div>
-
-<!-- ═══════════════════════ MAIN CONTENT ═══════════════════════ -->
-<main id="main" role="main">
-
-  <!-- ─────────────────────── MARKETS PAGE ─────────────────────── -->
-  <div id="pg-home" class="page active" role="tabpanel" aria-label="Markets">
-    <!-- Index tiles row -->
-    <div class="home-top" id="index-tiles"></div>
-    <!-- Main body split -->
-    <div class="home-body">
-      <div class="home-main">
-        <!-- Sector heatmap -->
-        <div style="display:flex;flex-direction:column;overflow:hidden;min-height:0;">
-          <div class="panel-header">
-            <span class="panel-title">Sector Performance</span>
-            <span style="font-family:var(--mono);font-size:.62rem;color:var(--text3)">S&P 500</span>
-          </div>
-          <div id="sector-heatmap" class="sector-grid" style="overflow:auto;flex:1;"></div>
-        </div>
-        <!-- News -->
-        <div style="display:flex;flex-direction:column;overflow:hidden;min-height:0;border-top:1px solid var(--border);">
-          <div class="panel-header" style="flex-shrink:0">
-            <span class="panel-title">Market News</span>
-            <span class="atag on" style="cursor:default;font-size:.58rem;">LIVE</span>
-          </div>
-          <div id="news-feed" class="news-list" style="flex:1;overflow-y:auto;"></div>
-        </div>
-      </div>
-      <!-- Sidebar -->
-      <div class="home-sidebar" style="border-left:1px solid var(--border);">
-        <!-- Regime -->
-        <div class="panel-header"><span class="panel-title">Market Regime</span></div>
-        <div class="regime-widget">
-          <div class="regime-label">Detected Regime</div>
-          <div id="regime-value" class="regime-value NEUTRAL">NEUTRAL</div>
-          <div class="regime-bar-track"><div id="regime-bar" class="regime-bar-fill" style="width:0%;background:var(--text4)"></div></div>
-          <div id="regime-conf" class="regime-conf-label">0% confidence</div>
-          <div id="regime-signals" class="regime-signals"></div>
-        </div>
-        <!-- Movers -->
-        <div class="panel-header" style="border-top:1px solid var(--border)">
-          <span class="panel-title">Movers</span>
-          <div class="btn-group">
-            <button class="btn-tog active" onclick="setMoversTab('gainers',this)">Gainers</button>
-            <button class="btn-tog"        onclick="setMoversTab('losers',this)">Losers</button>
-          </div>
-        </div>
-        <div id="movers-list"></div>
-        <!-- Crypto -->
-        <div class="panel-header" style="border-top:1px solid var(--border)"><span class="panel-title">Crypto</span></div>
-        <div id="crypto-list" class="crypto-list"></div>
-        <!-- Macro -->
-        <div class="panel-header" style="border-top:1px solid var(--border)"><span class="panel-title">Macro</span></div>
-        <div id="macro-watch">
-          <div class="macro-row"><span class="macro-lbl">10Y Yield</span><span class="macro-val" id="m-10y">4.38%</span></div>
-          <div class="macro-row"><span class="macro-lbl">2Y Yield</span><span class="macro-val" id="m-2y">4.82%</span></div>
-          <div class="macro-row"><span class="macro-lbl">DXY</span><span class="macro-val" id="m-dxy">104.2</span></div>
-          <div class="macro-row"><span class="macro-lbl">Gold (GLD)</span><span class="macro-val" id="m-gold">–</span></div>
-          <div class="macro-row"><span class="macro-lbl">VIX</span><span class="macro-val" id="m-vix">14.8</span></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─────────────────────── CHARTS PAGE ─────────────────────── -->
-  <div id="pg-charts" class="page" role="tabpanel" aria-label="Charts">
-    <div class="charts-header">
-      <div class="symbol-wrap" style="position:relative;">
-        <input type="text" id="symbol-input" class="symbol-input" placeholder="Symbol…" autocomplete="off" aria-label="Search symbol"/>
-        <div id="symbol-suggestions" class="symbol-suggestions"></div>
-      </div>
-      <div class="chart-symbol-info">
-        <span id="cs-sym">SPY</span>
-        <span id="cs-name" style="font-size:.72rem;color:var(--text3)">S&P 500 ETF</span>
-        <span id="cs-price">–</span>
-        <span id="cs-chg" class="cs-chg">–</span>
-      </div>
-      <div class="tf-group">
-        <button class="tf-btn" onclick="setTimeframe('1M')">1m</button>
-        <button class="tf-btn" onclick="setTimeframe('5M')">5m</button>
-        <button class="tf-btn" onclick="setTimeframe('15M')">15m</button>
-        <button class="tf-btn" onclick="setTimeframe('1H')">1h</button>
-        <button class="tf-btn active" onclick="setTimeframe('1D')">1D</button>
-        <button class="tf-btn" onclick="setTimeframe('1W')">1W</button>
-      </div>
-      <button class="ai-analyze-btn" onclick="runAIAnalysis()">AI Analysis</button>
-    </div>
-    <div class="charts-body">
-      <div class="chart-col">
-        <div class="chart-pane">
-          <div class="chart-pane-header">
-            <span class="chart-pane-title">Price</span>
-            <div class="overlay-toggles">
-              <button class="overlay-tog active" onclick="toggleOverlay('ema20',this)">EMA20</button>
-              <button class="overlay-tog active" onclick="toggleOverlay('ema50',this)">EMA50</button>
-              <button class="overlay-tog" onclick="toggleOverlay('bb',this)">BB</button>
-              <button class="overlay-tog" onclick="toggleOverlay('vwap',this)">VWAP</button>
+    <nav class="top-nav">
+        <div class="container" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="nav-brand">Market<span>Pulse</span></div>
+            <div class="nav-links">
+                <a href="/markets" class="active">Markets</a>
+                <a href="/charts">Charts</a>
+                <a href="/trader">AI Engine</a>
+                <a href="/portfolio">Portfolio</a>
+                <a href="/settings">Config</a>
+                <a href="#" id="logout-btn" style="margin-left: 3rem; color: var(--accent-red);">Disconnect</a>
             </div>
-          </div>
-          <div id="chart-price" style="height:340px;"></div>
         </div>
-        <div class="chart-pane">
-          <div class="chart-pane-header"><span class="chart-pane-title">Volume</span></div>
-          <div id="chart-volume" style="height:72px;"></div>
-        </div>
-        <div class="chart-pane">
-          <div class="chart-pane-header">
-            <span class="chart-pane-title">RSI (14)</span>
-            <span class="ind-value" id="rsi-value">–</span>
-          </div>
-          <div id="chart-rsi" style="height:80px;"></div>
-        </div>
-        <div class="chart-pane">
-          <div class="chart-pane-header">
-            <span class="chart-pane-title">MACD (12,26,9)</span>
-            <span class="ind-value" id="macd-value">–</span>
-          </div>
-          <div id="chart-macd" style="height:80px;"></div>
-        </div>
-      </div>
-      <div class="chart-sidebar">
-        <div class="panel-header"><span class="panel-title">Indicators</span></div>
-        <div id="indicator-panel" class="ind-grid"></div>
-        <div class="panel-header" style="border-top:1px solid var(--border);background:rgba(245,158,11,.03)">
-          <span class="panel-title" style="color:var(--amber)">AI Analyst</span>
-          <button class="run-btn" onclick="runAIAnalysis()">Analyze</button>
-        </div>
-        <div class="ai-panel-body">
-          <div id="ai-thinking-log" class="ai-thinking-log"></div>
-          <div id="ai-result-text" class="ai-result-text">Select a symbol and click Analyze.</div>
-        </div>
-      </div>
-    </div>
-  </div>
+    </nav>
 
-  <!-- ─────────────────────── AI TRADER PAGE ─────────────────────── -->
-  <div id="pg-trader" class="page" role="tabpanel" aria-label="AI Trader">
-    <div class="trader-topbar">
-      <div class="mode-control">
-        <span class="ctrl-label">Mode</span>
-        <div class="mode-btns">
-          <button class="mode-btn" data-mode="paused"     onclick="setAIMode('paused',this)">⏸ Paused</button>
-          <button class="mode-btn active" data-mode="autonomous" onclick="setAIMode('autonomous',this)">⚡ Autonomous</button>
+    <div class="market-strip">
+        <div class="container" style="display: flex; gap: 3rem;" id="ticker-strip">
+            <div class="ticker-item"><span class="ticker-symbol">SPY</span><span class="ticker-price">Loading...</span></div>
+            <div class="ticker-item"><span class="ticker-symbol">QQQ</span><span class="ticker-price">Loading...</span></div>
+            <div class="ticker-item"><span class="ticker-symbol">BTC</span><span class="ticker-price">Loading...</span></div>
+            <div class="ticker-item"><span class="ticker-symbol">ETH</span><span class="ticker-price">Loading...</span></div>
         </div>
-      </div>
-      <div class="scan-control">
-        <span class="ctrl-label">Scan every</span>
-        <select class="ctrl-select" id="scan-interval" onchange="setScanInterval(this.value)">
-          <option value="1">1 min</option>
-          <option value="5" selected>5 min</option>
-          <option value="15">15 min</option>
-          <option value="30">30 min</option>
-        </select>
-      </div>
-      <div class="asset-tags">
-        <span class="atag on">Equities</span>
-        <span class="atag on">ETFs</span>
-        <span class="atag on">Crypto</span>
-        <span class="atag off" title="Coming soon">Options</span>
-      </div>
-      <button class="run-now-btn" onclick="runAINow()">▶ Run Now</button>
-      <div class="stats-strip">
-        <div class="stat-item"><span class="stat-lbl">Win Rate</span><span class="stat-val" id="ts-winrate">–</span></div>
-        <div class="stat-item"><span class="stat-lbl">Total P&L</span><span class="stat-val" id="ts-pnl">–</span></div>
-        <div class="stat-item"><span class="stat-lbl">Trades</span><span class="stat-val" id="ts-trades">–</span></div>
-        <div class="stat-item"><span class="stat-lbl">Best</span><span class="stat-val g" id="ts-best">–</span></div>
-        <div class="stat-item"><span class="stat-lbl">Worst</span><span class="stat-val r" id="ts-worst">–</span></div>
-      </div>
     </div>
-    <div class="trader-body">
-      <div class="trader-main">
-        <div class="panel-header" style="flex-shrink:0;">
-          <span class="panel-title">Autonomous Execution Log</span>
-        </div>
-        <div id="ai-decision-log" style="flex:1;overflow-y:auto;"></div>
-      </div>
-      <div class="trader-sidebar">
-        <div class="panel-header"><span class="panel-title">Risk Controls</span></div>
-        <div class="risk-form">
-          <div class="rf-field">
-            <label class="rf-lbl">Max Position Size</label>
-            <div class="rf-row"><input type="number" class="rf-input" id="rf-max-pos" value="5" min="1" max="50" step="1"/><span class="rf-unit">%</span></div>
-          </div>
-          <div class="rf-field">
-            <label class="rf-lbl">Max Daily Loss</label>
-            <div class="rf-row"><input type="number" class="rf-input" id="rf-max-loss" value="2" min="0.5" max="20" step="0.5"/><span class="rf-unit">%</span></div>
-          </div>
-          <div class="rf-field">
-            <label class="rf-lbl">Min Confidence</label>
-            <div class="rf-row"><input type="number" class="rf-input" id="rf-min-conf" value="70" min="50" max="95" step="5"/><span class="rf-unit">%</span></div>
-          </div>
-          <button class="save-btn-sm" onclick="saveRiskControls()">Save Changes</button>
-        </div>
-        <div class="panel-header" style="border-top:1px solid var(--border)"><span class="panel-title">AI Watchlist</span></div>
-        <div id="ai-watchlist-display" class="wl-chips"></div>
-        <div class="wl-add">
-          <input type="text" id="watchlist-input" class="wl-input" placeholder="Add symbol…" maxlength="10"/>
-          <button class="wl-add-btn" onclick="addToWatchlist()">+</button>
-        </div>
-      </div>
-    </div>
-  </div>
 
-  <!-- ─────────────────────── PORTFOLIO PAGE ─────────────────────── -->
-  <div id="pg-portfolio" class="page" role="tabpanel" aria-label="Portfolio">
-    <div class="account-bar">
-      <div class="acct-stat"><span class="as-lbl">Portfolio Value</span><span class="as-val" id="acct-equity">–</span></div>
-      <div class="acct-stat"><span class="as-lbl">Cash</span><span class="as-val" id="acct-cash">–</span></div>
-      <div class="acct-stat"><span class="as-lbl">Day P&L</span><span class="as-val" id="acct-day-pnl">–</span></div>
-      <div class="acct-stat"><span class="as-lbl">Buying Power</span><span class="as-val" id="acct-bp">–</span></div>
-      <div class="acct-stat"><span class="as-lbl">Day Trades</span><span class="as-val" id="acct-dt">–</span></div>
-      <div class="acct-stat"><span class="as-lbl">Environment</span><span class="as-val" id="acct-env" style="color:var(--amber)">PAPER</span></div>
-    </div>
-    <div class="portfolio-body">
-      <div class="port-main">
-        <!-- Equity curve chart -->
-        <div class="panel-header">
-          <span class="panel-title">Equity Curve</span>
-          <div class="btn-group">
-            <button class="btn-tog active" onclick="setEquityPeriod('1W',this)">1W</button>
-            <button class="btn-tog" onclick="setEquityPeriod('1M',this)">1M</button>
-            <button class="btn-tog" onclick="setEquityPeriod('3M',this)">3M</button>
-          </div>
+    <div class="container dashboard-grid">
+        <!-- Main News Column -->
+        <div>
+            <h2 class="section-header">Breaking News Array</h2>
+            <div class="card" style="padding: 1.5rem;" id="news-container">
+                <p>Establishing connection to data feeds...</p>
+            </div>
         </div>
-        <div id="equity-chart" style="height:180px;border-bottom:1px solid var(--border);"></div>
-        <!-- Positions table -->
-        <div class="panel-header">
-          <span class="panel-title">Open Positions</span>
-          <button class="close-all-btn" onclick="closeAllPositions()">Close All</button>
-        </div>
-        <div class="tbl-wrap">
-          <table id="positions-table" style="display:none">
-            <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Avg Entry</th><th>Current</th><th>P&L</th><th>P&L%</th><th></th></tr></thead>
-            <tbody id="positions-body"></tbody>
-          </table>
-        </div>
-        <div id="no-positions" class="empty-state">No open positions</div>
-        <!-- Orders table -->
-        <div class="panel-header" style="border-top:1px solid var(--border)">
-          <span class="panel-title">Orders</span>
-          <div class="btn-group">
-            <button class="btn-tog active" onclick="setOrderTab('all',this)">All</button>
-            <button class="btn-tog" onclick="setOrderTab('filled',this)">Filled</button>
-            <button class="btn-tog" onclick="setOrderTab('open',this)">Open</button>
-          </div>
-        </div>
-        <div class="tbl-wrap">
-          <table><thead><tr><th>Time</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Type</th><th>Price</th><th>Status</th><th></th></tr></thead>
-          <tbody id="orders-body"></tbody></table>
-        </div>
-      </div>
-      <!-- Order form sidebar -->
-      <div class="port-sidebar">
-        <div class="panel-header"><span class="panel-title">Manual Order</span></div>
-        <div class="order-form">
-          <div class="side-toggle">
-            <button id="ob-buy"  class="side-btn buy active" onclick="setOrderSide('buy',this)">BUY</button>
-            <button id="ob-sell" class="side-btn sell"        onclick="setOrderSide('sell',this)">SELL</button>
-          </div>
-          <div class="of-field"><label class="of-lbl">Symbol</label><input type="text" id="of-symbol" class="of-input" placeholder="AAPL" style="text-transform:uppercase"/></div>
-          <div class="of-field"><label class="of-lbl">Quantity</label><input type="number" id="of-qty" class="of-input" placeholder="10" min="1"/></div>
-          <div class="of-field"><label class="of-lbl">Order Type</label><select id="of-type" class="of-select" onchange="toggleLimitField(this.value)"><option value="market">Market</option><option value="limit">Limit</option></select></div>
-          <div class="of-field" id="of-limit-row" style="display:none"><label class="of-lbl">Limit Price</label><input type="number" id="of-limit" class="of-input" placeholder="0.00" step="0.01"/></div>
-          <div class="of-field"><label class="of-lbl">Stop Loss</label><input type="number" id="of-sl" class="of-input" placeholder="Optional" step="0.01"/></div>
-          <div class="of-field"><label class="of-lbl">Take Profit</label><input type="number" id="of-tp" class="of-input" placeholder="Optional" step="0.01"/></div>
-          <button class="submit-btn" id="submit-order-btn" onclick="submitManualOrder()">Place Buy Order</button>
-        </div>
-      </div>
-    </div>
-  </div>
 
-</main>
-
-<!-- ═══════════════════════ SETTINGS MODAL ═══════════════════════ -->
-<div id="modal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Settings">
-  <div class="modal-box">
-    <div class="modal-head">
-      <span class="modal-head-title">Settings</span>
-      <button class="modal-close" onclick="closeConfig()" aria-label="Close settings">✕</button>
+        <!-- Right Side Panel -->
+        <div>
+            <h2 class="section-header">Top Growth Leaders</h2>
+            <div class="card" style="padding: 1.5rem;" id="movers-container">
+                 <p>Analyzing market volumes...</p>
+            </div>
+        </div>
     </div>
-    <div class="modal-body">
-      <div class="modal-section">
-        <div class="modal-section-title">Getting Started</div>
-        <div class="modal-note">
-          All keys are optional — the dashboard loads with empty states without them.<br/>
-          1. Free paper account at <a href="https://alpaca.markets" target="_blank" rel="noopener">alpaca.markets</a><br/>
-          2. AI key at <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> or <a href="https://aistudio.google.com" target="_blank" rel="noopener">Google AI Studio</a><br/>
-          3. Market data at <a href="https://polygon.io" target="_blank" rel="noopener">polygon.io</a> (free tier)
-        </div>
-      </div>
-      <div class="modal-section">
-        <div class="modal-section-title">Trading Environment</div>
-        <div class="env-toggle">
-          <button id="env-paper-btn" class="env-btn paper active" onclick="selectEnv('paper',this)">Paper Trading (Safe)</button>
-          <button id="env-live-btn"  class="env-btn live"         onclick="selectEnv('live',this)">Live Trading ⚠</button>
-        </div>
-        <div id="live-warning" class="live-warning" style="display:none">
-          <div class="live-warning-title">⚠ Real Money Mode</div>
-          <div class="live-warning-text">Live trading uses real money. Losses are real. Ensure you have tested your strategy on paper first.</div>
-        </div>
-      </div>
-      <div class="modal-section">
-        <div class="modal-section-title">Alpaca API Keys</div>
-        <div class="modal-field">
-          <label class="modal-lbl">API Key</label>
-          <input type="password" id="cfg-alpaca-key" class="modal-input" placeholder="PK… or AK…"/>
-        </div>
-        <div class="modal-field">
-          <label class="modal-lbl">Secret Key</label>
-          <input type="password" id="cfg-alpaca-secret" class="modal-input" placeholder="Secret key"/>
-        </div>
-      </div>
-      <div class="modal-section">
-        <div class="modal-section-title">AI Engine</div>
-        <div class="modal-field">
-          <label class="modal-lbl">Provider</label>
-          <select id="cfg-llm-provider" class="modal-input" onchange="toggleProviderFields()">
-            <option value="anthropic">Anthropic (Claude)</option>
-            <option value="gemini">Google (Gemini)</option>
-          </select>
-        </div>
-        <div class="modal-field" id="anthropic-field">
-          <label class="modal-lbl">Anthropic API Key</label>
-          <input type="password" id="cfg-anthropic-key" class="modal-input" placeholder="sk-ant-…"/>
-        </div>
-        <div class="modal-field" id="gemini-field" style="display:none">
-          <label class="modal-lbl">Gemini API Key (Google AI Studio)</label>
-          <input type="password" id="cfg-gemini-key" class="modal-input" placeholder="AIza…"/>
-        </div>
-      </div>
-      <div class="modal-section">
-        <div class="modal-section-title">Polygon.io — Market Data</div>
-        <div class="modal-field">
-          <label class="modal-lbl">API Key</label>
-          <input type="password" id="cfg-polygon-key" class="modal-input" placeholder="Free tier key"/>
-        </div>
-      </div>
-      <div class="modal-section">
-        <div class="modal-section-title">Connection Status</div>
-        <div id="key-status-list" class="key-status-list"></div>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button class="modal-cancel" onclick="closeConfig()">Cancel</button>
-      <button class="modal-save" onclick="saveConfig()">Save Keys</button>
-    </div>
-  </div>
-</div>
 
-<div id="toast-container" role="alert" aria-live="assertive"></div>
-
-<script>
-function toggleProviderFields() {
-  const p = document.getElementById('cfg-llm-provider').value;
-  document.getElementById('anthropic-field').style.display = p === 'anthropic' ? 'block' : 'none';
-  document.getElementById('gemini-field').style.display    = p === 'gemini'    ? 'block' : 'none';
-}
-</script>
-
-<script src="/js/auth.js"></script>
-<script src="/js/api.js"></script>
-<script src="/js/sse.js"></script>
-<script src="/js/charts.js"></script>
-<script src="/js/home.js"></script>
-<script src="/js/trader.js"></script>
-<script src="/js/portfolio.js"></script>
-<script src="/js/app.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/markets.js"></script>
 </body>
 </html>

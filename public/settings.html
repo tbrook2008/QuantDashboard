@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Config - MarketPulse</title>
+    <link rel="stylesheet" href="/css/reset.css">
+    <link rel="stylesheet" href="/css/main.css">
+    <style>
+        .top-nav {
+            background-color: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .nav-brand { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; }
+        .nav-brand span { color: var(--accent-blue); }
+        .nav-links a { margin-left: 2rem; font-weight: 600; color: var(--text-secondary); font-size: 0.95rem; text-decoration:none; }
+        .nav-links a.active { color: var(--accent-blue); border-bottom: 2px solid var(--accent-blue); padding-bottom: 1.25rem;}
+        .nav-links a:hover { color: var(--accent-blue); }
+    </style>
+</head>
+<body>
+    <nav class="top-nav">
+        <div class="container" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="nav-brand">Market<span>Pulse</span></div>
+            <div class="nav-links">
+                <a href="/markets">Markets</a>
+                <a href="/charts">Charts</a>
+                <a href="/trader">AI Engine</a>
+                <a href="/portfolio">Portfolio</a>
+                <a href="/settings" class="active">Config</a>
+                <a href="#" id="logout-btn" style="margin-left: 3rem; color: var(--accent-red);">Disconnect</a>
+            </div>
+        </div>
+    </nav>
+    <div class="container" style="max-width: 600px; margin-top: 3rem;">
+        <h2 style="font-size: 1.5rem; font-weight: 800; margin-bottom: 1.5rem;">System Configuration</h2>
+        <div class="card" style="padding: 2rem;">
+            <form id="settings-form">
+                <div class="form-group">
+                    <label class="form-label" for="wl">Global Watchlist (Comma separated tickers)</label>
+                    <input type="text" id="wl" class="form-input" placeholder="SPY, QQQ, BTC">
+                </div>
+                <div class="form-group" style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border-color)">
+                    <label class="form-label" for="ak">Alpaca API Key ID</label>
+                    <input type="text" id="ak" class="form-input" placeholder="(Unchanged)">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="as">Alpaca Secret Key</label>
+                    <input type="password" id="as" class="form-input" placeholder="(Unchanged)">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="pk">Polygon.io API Key</label>
+                    <input type="password" id="pk" class="form-input" placeholder="(Unchanged)">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="lk">Internal AI Key (Gemini/Claude)</label>
+                    <input type="password" id="lk" class="form-input" placeholder="(Unchanged)">
+                </div>
+                <!-- Inline overrides purely so it fits inside standard main forms without weird specific margin logic -->
+                <div id="status-msg" class="error-msg" style="background:var(--accent-green-hover); color:#fff; border-left:none; font-weight: 600;"></div>
+                <div id="err-msg" class="error-msg"></div>
+                <button type="submit" class="btn-primary" style="margin-top: 1rem;">Lock & Update Global Parameters</button>
+            </form>
+        </div>
+    </div>
+    <script src="/js/api.js"></script>
+    <script src="/js/settings.js"></script>
+</body>
+</html>

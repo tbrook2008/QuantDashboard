@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - MarketPulse</title>
+    <link rel="stylesheet" href="/css/reset.css">
+    <link rel="stylesheet" href="/css/main.css">
+    <style>
+        .login-page {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 440px;
+            padding: 3rem 2.5rem;
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .login-header h1 {
+            font-size: 1.7rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: var(--text-primary);
+        }
+        .login-header h1 span {
+            color: var(--accent-blue);
+        }
+        .login-header p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body class="login-page">
+
+    <div class="card login-card" id="login-container">
+        <div class="login-header">
+            <h1 id="page-title">Market<span>Pulse</span></h1>
+            <p id="page-subtitle">Authenticating connection</p>
+        </div>
+
+        <!-- Mode 1: Login / Set Master Password -->
+        <form id="auth-form">
+            <div class="form-group">
+                <label for="password" class="form-label">Master Password</label>
+                <input type="password" id="password" class="form-input" required autocomplete="current-password" autofocus>
+            </div>
+            <div id="auth-error" class="error-msg"></div>
+            <button type="submit" class="btn-primary" id="auth-btn">Unlock Engine</button>
+        </form>
+
+        <!-- Mode 2: First Time Key Setup Wizard -->
+        <form id="keys-form" style="display: none;">
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.5;">
+                First time setup. Please enter your API keys. These are <strong>AES-256 encrypted</strong> using your master password context and stored locally. Never backed up to the cloud.
+            </p>
+            
+            <div class="form-group">
+                <label class="form-label" for="alpaca-key">Alpaca API Key ID</label>
+                <input type="text" id="alpaca-key" class="form-input" placeholder="PK...">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="alpaca-secret">Alpaca Secret Key</label>
+                <input type="password" id="alpaca-secret" class="form-input" placeholder="...">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="polygon-key">Polygon.io API Key (Mandatory)</label>
+                <input type="password" id="polygon-key" class="form-input" placeholder="...">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="llm-key">AI Provider API Key (Anthropic or Gemini)</label>
+                <input type="password" id="llm-key" class="form-input" placeholder="sk-ant-... or AIz...">
+            </div>
+            
+            <div id="keys-error" class="error-msg"></div>
+            <button type="submit" class="btn-primary" style="margin-top: 1rem;" id="save-keys-btn">Save & Initialize System</button>
+        </form>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/js/api.js"></script>
+    <script src="/js/auth.js"></script>
+</body>
+</html>

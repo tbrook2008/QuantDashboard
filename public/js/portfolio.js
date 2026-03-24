@@ -1,308 +1,74 @@
-// ═══════════════════════════════════════════════════════
-//  MarketPulse — Portfolio Page Module
-// ═══════════════════════════════════════════════════════
-
-let equityChart;
-let orderSide = 'buy';
-let ordersTab = 'all';
-
-// ── Init ─────────────────────────────────────────────────
-async function initPortfolio() {
-  initEquityChart();
-  await loadPortfolio();
-}
-
-async function loadPortfolio() {
-  await Promise.all([
-    loadAccount(),
-    loadPositions(),
-    loadOrders(),
-    loadEquityCurve(),
-  ]);
-}
-
-// ── Account ───────────────────────────────────────────────
-async function loadAccount() {
-  try {
-    const { account, demo } = await API.getAccount();
-
-    if (demo || !account) {
-      renderAccountSummary(null);
-      return;
-    }
-
-    renderAccountSummary(account);
-  } catch (e) {
-    if (e.message.includes('Alpaca not configured') && !window.alpacaToasted) {
-      toast('Connect your Alpaca API keys in Settings to view Portfolio!', 'error', 6000);
-      window.alpacaToasted = true;
-    }
-  }
-}
-
-function renderAccountSummary(account) {
-  if (!account) {
-    document.getElementById('acct-equity').textContent = '–';
-    document.getElementById('acct-cash').textContent   = '–';
-    document.getElementById('acct-day-pnl').textContent = 'Connect Alpaca';
-    document.getElementById('acct-bp').textContent     = '–';
-    document.getElementById('acct-dt').textContent     = '–';
-    return;
-  }
-
-  const equity  = parseFloat(account.equity);
-  const cash    = parseFloat(account.cash);
-  const dayPnl  = equity - parseFloat(account.last_equity || equity);
-  const dayPct  = account.last_equity ? (dayPnl / parseFloat(account.last_equity) * 100) : 0;
-  const bp      = parseFloat(account.buying_power);
-
-  document.getElementById('acct-equity').textContent   = fmtDollar(equity);
-  document.getElementById('acct-cash').textContent     = fmtDollar(cash);
-  const dpEl = document.getElementById('acct-day-pnl');
-  dpEl.textContent = `${fmtDollar(dayPnl)} (${fmtPct(dayPct)})`;
-  dpEl.className   = `as-val ${dayPnl >= 0 ? 'green' : 'red'}`;
-  document.getElementById('acct-bp').textContent       = fmtDollar(bp);
-  document.getElementById('acct-dt').textContent       = `${account.daytrade_count || 0} / 3`;
-}
-
-// ── Positions ─────────────────────────────────────────────
-async function loadPositions() {
-  try {
-    const { positions } = await API.getPositions();
-    const body   = document.getElementById('positions-body');
-    const noPosEl = document.getElementById('no-positions');
-    const tableEl = document.getElementById('positions-table');
-
-    if (!positions || !positions.length) {
-      body.innerHTML = '';
-      noPosEl.style.display = 'block';
-      tableEl.style.display = 'none';
-      return;
-    }
-
-    noPosEl.style.display  = 'none';
-    tableEl.style.display  = 'table';
-
-    body.innerHTML = positions.map(p => {
-      const side    = parseInt(p.qty) > 0 ? 'long' : 'short';
-      const pnl     = parseFloat(p.unrealized_pl);
-      const pnlPct  = parseFloat(p.unrealized_plpc) * 100;
-      const current = parseFloat(p.current_price);
-      const avg     = parseFloat(p.avg_entry_price);
-
-      return `
-        <tr>
-          <td><span class="td-sym">${p.symbol}</span></td>
-          <td><span class="td-side ${side}">${side.toUpperCase()}</span></td>
-          <td>${Math.abs(p.qty)}</td>
-          <td>$${fmt(avg)}</td>
-          <td>$${fmt(current)}</td>
-          <td class="${pnl >= 0 ? 'green' : 'red'}">${fmtDollar(pnl)}</td>
-          <td class="${pnlPct >= 0 ? 'green' : 'red'}">${fmtPct(pnlPct)}</td>
-          <td>
-            <button class="close-pos-btn" onclick="closePosition('${p.symbol}')">Close</button>
-          </td>
-        </tr>
-      `;
-    }).join('');
-
-  } catch (e) {
-    // console.error('loadPositions error:', e.message);
-  }
-}
-
-async function closePosition(symbol) {
-  if (!confirm(`Close ${symbol} position?`)) return;
-  try {
-    await API.closePosition(symbol);
-    toast(`${symbol} position closed`, 'success');
-    setTimeout(loadPositions, 1500);
-  } catch (e) {
-    toast(`Failed: ${e.message}`, 'error');
-  }
-}
-
-async function closeAllPositions() {
-  if (!confirm('Close ALL open positions? This cannot be undone.')) return;
-  try {
-    await API.closeAllPositions();
-    toast('All positions closed', 'success');
-    setTimeout(loadPositions, 2000);
-  } catch (e) {
-    toast(`Failed: ${e.message}`, 'error');
-  }
-}
-
-// ── Orders ────────────────────────────────────────────────
-async function loadOrders() {
-  try {
-    const { orders } = await API.getOrders(ordersTab, 50);
-    const body = document.getElementById('orders-body');
-    if (!orders || !orders.length) {
-      body.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">No orders</td></tr>`;
-      return;
-    }
-
-    body.innerHTML = orders.map(o => {
-      const filledPrice = parseFloat(o.filled_avg_price) || parseFloat(o.limit_price) || 0;
-      const statusClass = { filled: 'filled', cancelled: 'cancelled', pending_new: 'pending', new: 'pending' }[o.status] || '';
-      return `
-        <tr>
-          <td>${fmtTime(o.created_at)}</td>
-          <td><span class="td-sym">${o.symbol}</span></td>
-          <td class="${o.side === 'buy' ? 'green' : 'red'}">${o.side?.toUpperCase()}</td>
-          <td>${o.qty}</td>
-          <td style="text-transform:capitalize">${o.type}</td>
-          <td>${filledPrice > 0 ? `$${fmt(filledPrice)}` : '–'}</td>
-          <td><span class="td-status ${statusClass}">${o.status}</span></td>
-          <td>
-            ${['new','pending_new','accepted'].includes(o.status)
-              ? `<button class="close-pos-btn" onclick="cancelOrder('${o.id}')">Cancel</button>`
-              : ''}
-          </td>
-        </tr>
-      `;
-    }).join('');
-
-  } catch {}
-}
-
-function setOrderTab(tab, btn) {
-  ordersTab = tab;
-  document.querySelectorAll('.panel-head .tgl').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  loadOrders();
-}
-
-async function cancelOrder(id) {
-  try {
-    await API.cancelOrder(id);
-    toast('Order cancelled', 'info');
-    setTimeout(loadOrders, 1000);
-  } catch (e) {
-    toast(`Failed: ${e.message}`, 'error');
-  }
-}
-
-// ── Equity Chart ──────────────────────────────────────────
-function initEquityChart() {
-  const LWC = window.LightweightCharts;
-  if (!LWC) return;
-  const container = document.getElementById('equity-chart');
-  if (!container) return;
-
-  equityChart = LWC.createChart(container, {
-    layout: { background: { color: '#0c0d0f' }, textColor: '#4a5568' },
-    grid:   { vertLines: { color: '#1c1f23' }, horzLines: { color: '#1c1f23' } },
-    rightPriceScale: { borderColor: '#1c1f23' },
-    timeScale: { borderColor: '#1c1f23', timeVisible: true },
-    height: 200,
-  });
-
-  equityChart.addAreaSeries({
-    lineColor: '#2d8cf0',
-    topColor:  'rgba(45,140,240,0.3)',
-    bottomColor: 'rgba(45,140,240,0)',
-    lineWidth: 2,
-  });
-}
-
-async function loadEquityCurve() {
-  try {
-    const { history, snapshots } = await API.getPortfolioHistory('1M');
-    const LWC = window.LightweightCharts;
-    if (!LWC || !equityChart) return;
-
-    let data = [];
-
-    // Prefer Alpaca portfolio history
-    if (history?.equity && history.timestamp) {
-      data = history.timestamp.map((ts, i) => ({
-        time:  Math.floor(ts),
-        value: history.equity[i],
-      })).filter(d => d.value > 0);
-    }
-
-    // Fall back to our snapshots
-    if (!data.length && snapshots?.length) {
-      data = snapshots.map(s => ({
-        time:  Math.floor(new Date(s.timestamp).getTime() / 1000),
-        value: s.equity,
-      }));
-    }
-
-    if (data.length) {
-      const series = equityChart.series()[0];
-      if (series) series.setData(data);
-    }
-
-  } catch {}
-}
-
-function setEquityPeriod(period, btn) {
-  document.querySelectorAll('.panel-head .tgl').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  loadEquityCurve(period);
-}
-
-// ── Manual Order Form ─────────────────────────────────────
-function setOrderSide(side, btn) {
-  orderSide = side;
-  document.querySelectorAll('.ob-btn').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-
-  const submitBtn = document.getElementById('submit-order-btn');
-  if (submitBtn) {
-    submitBtn.style.background = side === 'buy' ? 'var(--green)' : 'var(--red)';
-    submitBtn.style.color      = side === 'buy' ? '#000' : '#fff';
-    submitBtn.textContent      = `${side.toUpperCase()} Order`;
-  }
-}
-
-function toggleLimitField(type) {
-  document.getElementById('of-limit-row').style.display = type === 'limit' ? 'flex' : 'none';
-}
-
-async function submitManualOrder() {
-  const symbol = document.getElementById('of-symbol').value.toUpperCase().trim();
-  const qty    = parseInt(document.getElementById('of-qty').value);
-  const type   = document.getElementById('of-type').value;
-  const limit  = parseFloat(document.getElementById('of-limit').value) || null;
-  const sl     = parseFloat(document.getElementById('of-sl').value) || null;
-  const tp     = parseFloat(document.getElementById('of-tp').value) || null;
-
-  if (!symbol || !qty || qty <= 0) {
-    toast('Symbol and quantity required', 'error'); return;
-  }
-
-  const confirmMsg = `${orderSide.toUpperCase()} ${qty} shares of ${symbol}${type === 'limit' ? ` @ $${limit}` : ' at market'}. Confirm?`;
-  if (!confirm(confirmMsg)) return;
-
-  try {
-    const { order } = await API.submitOrder({
-      symbol, qty, side: orderSide, type,
-      limitPrice: limit, stopLoss: sl, takeProfit: tp,
+document.addEventListener('DOMContentLoaded', async () => {
+    document.getElementById('logout-btn').addEventListener('click', (e) => {
+        e.preventDefault();
+        sessionStorage.removeItem('mp_token');
+        window.location.href = '/login';
     });
-    toast(`✅ Order submitted: ${orderSide.toUpperCase()} ${qty} ${symbol}`, 'success');
-    // Clear form
-    document.getElementById('of-symbol').value = '';
-    document.getElementById('of-qty').value    = '';
-    setTimeout(loadPortfolio, 2000);
-  } catch (e) {
-    toast(`Order failed: ${e.message}`, 'error');
-  }
-}
 
-// ── Kill Switch ────────────────────────────────────────────
-async function triggerKillSwitch() {
-  if (!confirm('⚠️ EMERGENCY KILL SWITCH\n\nThis will:\n• Cancel ALL open orders\n• Close ALL open positions\n\nAre you absolutely sure?')) return;
-  if (!confirm('Second confirmation: Close everything NOW?')) return;
+    const accountStats = document.getElementById('account-stats');
+    const positionsTable = document.querySelector('#positions-table tbody');
+    const ordersList = document.getElementById('orders-list');
 
-  try {
-    const result = await API.killSwitch();
-    toast('🚨 Kill switch activated — all positions closed!', 'error', 8000);
-    setTimeout(loadPortfolio, 2000);
-  } catch (e) {
-    toast(`Kill switch error: ${e.message}`, 'error');
-  }
-}
+    try {
+        // Parallel fetch for portfolio UI
+        const [account, portfolio] = await Promise.all([
+            window.api.get('/portfolio/account'),
+            window.api.get('/portfolio/positions')
+        ]);
+
+        // Render Top Stat Cards
+        const pnlNum = parseFloat(account.day_pnl);
+        const pnlClass = pnlNum >= 0 ? 'stat-up' : 'stat-down';
+        const pnlSign = pnlNum >= 0 ? '+' : '';
+
+        accountStats.innerHTML = `
+            <div class="card stat-card"><div class="stat-label">Total Equity</div><div class="stat-value">$${parseFloat(account.equity).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div>
+            <div class="card stat-card"><div class="stat-label">Today's P&L</div><div class="stat-value ${pnlClass}">${pnlSign}$${pnlNum.toFixed(2)} (${account.day_pnl_pct}%)</div></div>
+            <div class="card stat-card"><div class="stat-label">Cash Balance</div><div class="stat-value">$${parseFloat(account.cash).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div>
+            <div class="card stat-card"><div class="stat-label">Buying Power</div><div class="stat-value">$${parseFloat(account.buying_power).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div>
+        `;
+
+        // Render Positions
+        if (portfolio.positions && portfolio.positions.length > 0) {
+            positionsTable.innerHTML = portfolio.positions.map(p => {
+                const uPnl = parseFloat(p.unrealized_pl);
+                const dPnl = parseFloat(p.unrealized_intraday_pl);
+                return `
+                <tr>
+                    <td style="font-weight:700">${p.symbol}</td>
+                    <td>${p.qty}</td>
+                    <td>$${parseFloat(p.avg_entry_price).toFixed(2)}</td>
+                    <td>$${parseFloat(p.current_price).toFixed(2)}</td>
+                    <td class="${dPnl >= 0 ? 'stat-up' : 'stat-down'}">${dPnl >= 0 ? '+' : ''}$${dPnl.toFixed(2)}</td>
+                    <td class="${uPnl >= 0 ? 'stat-up' : 'stat-down'}">${uPnl >= 0 ? '+' : ''}$${uPnl.toFixed(2)} (${(parseFloat(p.unrealized_plpc)*100).toFixed(2)}%)</td>
+                </tr>
+            `}).join('');
+        } else {
+            positionsTable.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2.5rem; color: var(--text-secondary);">No active positions detected in Alpaca environment.</td></tr>`;
+        }
+
+        // Render Orders
+        if (portfolio.orders && portfolio.orders.length > 0) {
+            ordersList.innerHTML = portfolio.orders.slice(0, 10).map(o => `
+                <div style="padding: 1rem 0; border-bottom: 1px solid var(--border-color);">
+                    <div style="display:flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                        <strong>${o.symbol}</strong>
+                        <span style="font-size: 0.75rem; background: var(--border-color); padding: 0.15rem 0.5rem; border-radius: 4px; font-weight:600;">${o.status.toUpperCase()}</span>
+                    </div>
+                    <div style="font-family: var(--mono-font); font-size: 0.85rem; color: var(--text-secondary);">
+                        <span class="${o.side === 'buy' ? 'side-buy' : 'side-sell'}">${o.side.toUpperCase()}</span> ${o.qty !== null ? o.qty : ''} @ ${o.type} ${o.limit_price ? '$'+o.limit_price : ''}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 0.25rem;">
+                        ${new Date(o.submitted_at).toLocaleString()}
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            ordersList.innerHTML = `<p style="color: var(--text-secondary); font-size: 0.9rem;">No recent orders located.</p>`;
+        }
+
+    } catch (err) {
+        console.error(err);
+        accountStats.innerHTML = `<div class="error-msg" style="display:block; grid-column: span 4; font-weight:600;">Data Bridge Failure: Verify your encrypted Alpaca secure keys via initialization.</div>`;
+    }
+});

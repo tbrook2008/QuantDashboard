@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio - MarketPulse</title>
+    <link rel="stylesheet" href="/css/reset.css">
+    <link rel="stylesheet" href="/css/main.css">
+    <style>
+        .top-nav {
+            background-color: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .nav-brand {
+            font-size: 1.4rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+        .nav-brand span { color: var(--accent-blue); }
+        .nav-links a {
+            margin-left: 2rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            text-decoration: none;
+        }
+        .nav-links a.active { color: var(--accent-blue); border-bottom: 2px solid var(--accent-blue); padding-bottom: 1.25rem;}
+        .nav-links a:hover { color: var(--accent-blue); }
+
+        .portfolio-header {
+            margin: 2rem 0;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+        }
+        .stat-card {
+            padding: 1.5rem;
+            text-align: center;
+        }
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+        .stat-up { color: var(--accent-green); }
+        .stat-down { color: var(--accent-red); }
+
+        .portfolio-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 4rem;
+        }
+
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th { 
+            text-align: left; 
+            padding: 0.75rem 1rem; 
+            border-bottom: 2px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+        .data-table td { 
+            padding: 1rem; 
+            border-bottom: 1px solid var(--border-color); 
+            font-family: var(--mono-font);
+        }
+        .data-table tr:hover td { background-color: var(--bg-color); }
+        .side-buy { color: var(--accent-green); font-weight: 700; }
+        .side-sell { color: var(--accent-red); font-weight: 700; }
+    </style>
+</head>
+<body>
+
+    <nav class="top-nav">
+        <div class="container" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="nav-brand">Market<span>Pulse</span></div>
+            <div class="nav-links">
+                <a href="/markets">Markets</a>
+                <a href="/charts">Charts</a>
+                <a href="/trader">AI Engine</a>
+                <a href="/portfolio" class="active">Portfolio</a>
+                <a href="/settings">Config</a>
+                <a href="#" id="logout-btn" style="margin-left: 3rem; color: var(--accent-red);">Disconnect</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="portfolio-header" id="account-stats">
+            <div class="card stat-card"><div class="stat-label">Total Equity</div><div class="stat-value">...</div></div>
+            <div class="card stat-card"><div class="stat-label">Today's P&L</div><div class="stat-value">...</div></div>
+            <div class="card stat-card"><div class="stat-label">Cash Balance</div><div class="stat-value">...</div></div>
+            <div class="card stat-card"><div class="stat-label">Buying Power</div><div class="stat-value">...</div></div>
+        </div>
+
+        <div class="portfolio-grid">
+            <div class="card" style="padding: 1.5rem;">
+                <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; border-bottom: 2px solid var(--accent-blue); display: inline-block; padding-bottom: 0.5rem;">Open Positions</h3>
+                <div style="overflow-x: auto;">
+                    <table class="data-table" id="positions-table">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Shares</th>
+                                <th>Avg Price</th>
+                                <th>Current Price</th>
+                                <th>Today P&L</th>
+                                <th>Unrealized P&L</th>
+                            </tr>
+                        </thead>
+                        <tbody><tr><td colspan="6" style="text-align:center;">Loading ledger...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card" style="padding: 1.5rem;">
+                <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem;">Recent Orders</h3>
+                <div id="orders-list">
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">No recent orders format received.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/portfolio.js"></script>
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Trader - MarketPulse</title>
+    <link rel="stylesheet" href="/css/reset.css">
+    <link rel="stylesheet" href="/css/main.css">
+    <style>
+        .top-nav {
+            background-color: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .nav-brand {
+            font-size: 1.4rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+        .nav-brand span { color: var(--accent-blue); }
+        .nav-links a {
+            margin-left: 2rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            text-decoration: none;
+        }
+        .nav-links a.active { color: var(--accent-blue); border-bottom: 2px solid var(--accent-blue); padding-bottom: 1.25rem;}
+        .nav-links a:hover { color: var(--accent-blue); }
+
+        .control-panel {
+            background: var(--text-primary);
+            color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            margin: 2rem 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .mode-toggles {
+            display: flex;
+            gap: 1rem;
+            background: rgba(255,255,255,0.1);
+            padding: 0.5rem;
+            border-radius: 6px;
+        }
+        .mode-btn {
+            background: transparent;
+            border: none;
+            color: rgba(255,255,255,0.6);
+            padding: 0.5rem 1.5rem;
+            font-weight: 700;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .mode-btn.active {
+            background: white;
+            color: var(--text-primary);
+        }
+        .kill-switch {
+            background-color: var(--accent-red);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            font-weight: 800;
+            font-size: 1.1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(211, 47, 47, 0.4);
+            transition: 0.2s;
+        }
+        .kill-switch:hover { background-color: var(--accent-red-hover); transform: translateY(-1px); }
+
+        .log-terminal {
+            background-color: #0f172a;
+            color: #38bdf8;
+            padding: 1.5rem;
+            border-radius: 8px;
+            font-family: var(--mono-font);
+            font-size: 0.9rem;
+            height: 500px;
+            overflow-y: auto;
+            line-height: 1.6;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .log-line { margin-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.5rem; }
+        .log-time { color: #64748b; margin-right: 1rem; }
+    </style>
+</head>
+<body>
+
+    <nav class="top-nav">
+        <div class="container" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="nav-brand">Market<span>Pulse</span></div>
+            <div class="nav-links">
+                <a href="/markets">Markets</a>
+                <a href="/charts">Charts</a>
+                <a href="/trader" class="active">AI Engine</a>
+                <a href="/portfolio">Portfolio</a>
+                <a href="/settings">Config</a>
+                <a href="#" id="logout-btn" style="margin-left: 3rem; color: var(--accent-red);">Disconnect</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        
+        <div class="control-panel">
+            <div>
+                <h2 style="font-size: 1.5rem; font-weight:800; margin-bottom: 0.5rem;">Multi-Model Aggregation Engine</h2>
+                <p style="color: rgba(255,255,255,0.7); font-size: 0.95rem;">Routing parallel LLM calls for autonomous market inference.</p>
+            </div>
+            
+            <div>
+                <div style="font-size: 0.8rem; text-transform:uppercase; letter-spacing:1px; margin-bottom: 0.5rem; color: rgba(255,255,255,0.6);">Engine Mode</div>
+                <div class="mode-toggles" id="mode-toggles">
+                    <button class="mode-btn active" data-mode="PAUSED">PAUSED</button>
+                    <button class="mode-btn" data-mode="APPROVAL">APPROVAL</button>
+                    <button class="mode-btn" data-mode="AUTO">AUTO-TRADE</button>
+                </div>
+            </div>
+
+            <button class="kill-switch" id="kill-btn">🚨 LIQUIDATE PORTFOLIO</button>
+        </div>
+
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem;">Live Agent Terminal</h3>
+        <div class="log-terminal" id="terminal">
+            <div style="color: #64748b;">Initializing connection to AI matrix...</div>
+        </div>
+        
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/trader.js"></script>
+</body>
+</html>

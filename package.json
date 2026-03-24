@@ -1,35 +1,22 @@
 {
-  "name": "marketpulse",
-  "version": "1.0.0",
-  "description": "MarketPulse — AI-powered quantitative trading dashboard",
+  "name": "marketpulse-v2",
+  "version": "2.0.0",
+  "description": "MarketPulse AI Trading Dashboard",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
-    "dev": "nodemon server/index.js",
-    "test": "node server/test.js"
+    "dev": "nodemon server/index.js"
   },
   "dependencies": {
-    "@alpacahq/alpaca-trade-api": "^3.1.1",
-    "@anthropic-ai/sdk": "^0.24.3",
-    "@google/generative-ai": "^0.24.1",
-    "axios": "^1.6.7",
-    "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^9.4.3",
-    "compression": "^1.7.4",
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "express-rate-limit": "^7.2.0",
-    "helmet": "^7.1.0",
-    "jsonwebtoken": "^9.0.3",
-    "node-cron": "^3.0.3",
-    "node-fetch": "^2.7.0",
-    "ws": "^8.16.0"
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "sqlite3": "^5.1.7",
+    "yahoo-finance2": "^3.13.2"
   },
   "devDependencies": {
-    "nodemon": "^3.0.3"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "nodemon": "^3.1.0"
   }
 }

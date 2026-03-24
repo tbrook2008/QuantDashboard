@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Charts - MarketPulse</title>
+    <link rel="stylesheet" href="/css/reset.css">
+    <link rel="stylesheet" href="/css/main.css">
+    <style>
+        .top-nav {
+            background-color: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .nav-brand {
+            font-size: 1.4rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+        .nav-brand span { color: var(--accent-blue); }
+        .nav-links a {
+            margin-left: 2rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            text-decoration: none;
+        }
+        .nav-links a.active { color: var(--accent-blue); border-bottom: 2px solid var(--accent-blue); padding-bottom: 1.25rem;}
+        .nav-links a:hover { color: var(--accent-blue); }
+
+        .chart-header {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+            background: var(--panel-bg);
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .chart-input {
+            padding: 0.5rem;
+            border: 1px solid var(--border-color-dark);
+            border-radius: 4px;
+            font-family: var(--mono-font);
+            text-transform: uppercase;
+            font-weight: 700;
+            width: 120px;
+        }
+        .timeframe-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.4rem 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border-radius: 4px;
+        }
+        .timeframe-btn.active { background: var(--accent-blue-light); color: var(--accent-blue); }
+        .timeframe-btn:hover { background: var(--bg-color); }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            height: calc(100vh - 140px); /* Fill remaining space below nav/header */
+        }
+        
+        #tv-chart {
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .ai-sidebar {
+            padding: 1.5rem;
+            background: var(--bg-color);
+            overflow-y: auto;
+        }
+        .ai-sidebar h3 {
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: var(--accent-blue);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .ai-commentary-box {
+            background: white;
+            padding: 1rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="top-nav">
+        <div class="container" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="nav-brand">Market<span>Pulse</span></div>
+            <div class="nav-links">
+                <a href="/markets">Markets</a>
+                <a href="/charts" class="active">Charts</a>
+                <a href="/trader">AI Engine</a>
+                <a href="/portfolio">Portfolio</a>
+                <a href="/settings">Config</a>
+                <a href="#" id="logout-btn" style="margin-left: 3rem; color: var(--accent-red);">Disconnect</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="chart-header">
+        <input type="text" id="symbol-input" class="chart-input" value="SPY">
+        <div class="timeframes" id="tf-container">
+            <button class="timeframe-btn" data-tf="1m">1m</button>
+            <button class="timeframe-btn" data-tf="15m">15m</button>
+            <button class="timeframe-btn" data-tf="1h">1h</button>
+            <button class="timeframe-btn active" data-tf="1D">1D</button>
+        </div>
+        <button class="btn-primary" id="analyze-btn" style="width: auto;">Load & Analyze</button>
+    </div>
+
+    <div class="chart-grid">
+        <div id="tv-chart"></div>
+        
+        <div class="ai-sidebar">
+            <h3>✦ AI Technical Read</h3>
+            <div class="ai-commentary-box" id="ai-commentary">
+                Enter a symbol and timeframe to initialize the multi-model LLM analysis scan.
+            </div>
+            
+            <h3 style="margin-top: 2rem; color: var(--text-primary);">Indicators</h3>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                <label><input type="checkbox" id="toggle-ema" checked> EMA (20)</label>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                <label><input type="checkbox" id="toggle-rsi" checked> RSI (14) Bottom Pane</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Self-hosted script dependencies -->
+    <script src="/js/lightweight-charts.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/charts.js"></script>
+</body>
+</html>

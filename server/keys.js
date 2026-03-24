@@ -1,68 +1,71 @@
-// ═══════════════════════════════════════════════════════
-//  MarketPulse — Runtime Key Manager
-//  Stores API keys in SQLite and applies them at runtime.
-//  No server restart needed. Keys never hit the filesystem.
-// ═══════════════════════════════════════════════════════
-const db = require('./db');
+const crypto = require('crypto');
+const { runQuery, allQuery } = require('./db');
+require('dotenv').config();
 
-// In-memory cache of active keys per user (populated from DB on load)
-const _userKeys = new Map();
-
-function loadKeys(userId) {
-  if (!userId) return {};
-  const keys = {
-    alpacaKey:     db.getUserConfig(userId, 'alpaca_key', process.env.ALPACA_API_KEY || ''),
-    alpacaSecret:  db.getUserConfig(userId, 'alpaca_secret', process.env.ALPACA_SECRET_KEY || ''),
-    alpacaEnv:     db.getUserConfig(userId, 'alpaca_env', 'paper'), // 'paper' | 'live'
-    anthropicKey:  db.getUserConfig(userId, 'anthropic_key', process.env.ANTHROPIC_API_KEY || ''),
-    polygonKey:    db.getUserConfig(userId, 'polygon_key', process.env.POLYGON_API_KEY || ''),
-    llmProvider:   db.getUserConfig(userId, 'llm_provider', 'anthropic'),
-    geminiKey:     db.getUserConfig(userId, 'gemini_key', process.env.GEMINI_API_KEY || ''),
-  };
-  _userKeys.set(userId, keys);
-  return keys;
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+if (!ENCRYPTION_KEY) {
+    console.error("FATAL ERROR: ENCRYPTION_KEY is not defined in .env! Must be a 32-byte hex string.");
+    process.exit(1);
+}
+const keyBuffer = Buffer.from(ENCRYPTION_KEY, 'hex');
+if (keyBuffer.length !== 32) {
+    console.error("FATAL ERROR: ENCRYPTION_KEY must be exactly 32 bytes (64 hex characters)!");
+    process.exit(1);
 }
 
-function getKeys(userId) {
-  if (!userId) return {};
-  if (!_userKeys.has(userId)) return loadKeys(userId);
-  return _userKeys.get(userId);
+const IV_LENGTH = 16; 
+
+function encrypt(text) {
+    if (!text) return text;
+    let iv = crypto.randomBytes(IV_LENGTH);
+    let cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
+    let encrypted = cipher.update(text);
+    encrypted = Buffer.concat([encrypted, cipher.final()]);
+    return iv.toString('hex') + ':' + encrypted.toString('hex');
 }
 
-function setKeys(userId, updates) {
-  if (!userId) throw new Error('userId required');
-  // Persist each provided key to DB
-  const allowed = ['alpacaKey', 'alpacaSecret', 'alpacaEnv', 'anthropicKey', 'polygonKey', 'llmProvider', 'geminiKey'];
-  
-  const currentKeys = getKeys(userId);
-  for (const key of allowed) {
-    if (updates[key] !== undefined && updates[key] !== null) {
-      const dbKey = key.replace(/([A-Z])/g, '_$1').toLowerCase(); // camelCase → snake_case
-      db.setUserConfig(userId, dbKey, updates[key]);
-      currentKeys[key] = updates[key];
-    }
-  }
-  _userKeys.set(userId, currentKeys);
-  return currentKeys;
+function decrypt(text) {
+    if (!text) return text;
+    let textParts = text.split(':');
+    let iv = Buffer.from(textParts.shift(), 'hex');
+    let encryptedText = Buffer.from(textParts.join(':'), 'hex');
+    let decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString();
 }
 
-function getAlpacaBaseUrl(userId) {
-  const env = getKeys(userId).alpacaEnv || 'paper';
-  return env === 'live'
-    ? 'https://api.alpaca.markets'
-    : 'https://paper-api.alpaca.markets';
+const keyCache = {};
+
+async function loadKeys() {
+    const rows = await allQuery('SELECT key, value FROM config');
+    rows.forEach(row => {
+        try {
+            keyCache[row.key] = decrypt(row.value);
+        } catch (e) {
+            console.error(`Failed to decrypt key: ${row.key}`);
+        }
+    });
 }
 
-function isConfigured(userId) {
-  const k = getKeys(userId);
-  return {
-    alpaca:    !!(k.alpacaKey && k.alpacaSecret),
-    anthropic: !!k.anthropicKey,
-    gemini:    !!k.geminiKey,
-    polygon:   !!k.polygonKey,
-    alpacaEnv: k.alpacaEnv || 'paper',
-    llmProvider: k.llmProvider || 'anthropic',
-  };
+async function setKey(key, value) {
+    const encrypted = encrypt(value);
+    await runQuery(`
+        INSERT INTO config (key, value) VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value=excluded.value
+    `, [key, encrypted]);
+    keyCache[key] = value;
 }
 
-module.exports = { getKeys, setKeys, loadKeys, getAlpacaBaseUrl, isConfigured };
+function getKey(key) {
+    return keyCache[key] || null;
+}
+
+// Automatically export all keys so the AI engine can grab them directly if needed
+function getAllKeys() {
+    return { ...keyCache };
+}
+
+module.exports = {
+    encrypt, decrypt, loadKeys, setKey, getKey, getAllKeys
+};
